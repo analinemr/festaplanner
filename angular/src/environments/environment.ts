@@ -1,30 +1,22 @@
 /**
- * ENVIRONMENT PROD — Configuração de Ambiente de Produção
+ * ENVIRONMENT — Configuração de Ambiente de Desenvolvimento
  *
  * Usado automaticamente pelo Angular CLI ao executar:
- *   ng build --configuration production
+ *   ng serve
  *
- * O CLI substitui environment.ts por este arquivo em produção
- * graças ao fileReplacements configurado no angular.json.
- *
- * IMPORTANTE: Atualizar a apiUrl com o endereço real do servidor
- * onde o Spring Boot estará hospedado (ex: VPS, Heroku, Railway, etc.)
+ * Aponta para o backend Spring Boot rodando localmente.
  */
 export const environment = {
 
-  /** production: true → ativa otimizações do Angular (AOT, tree-shaking, minificação) */
-  production: true,
+  production: false,
 
   /**
-   * apiUrl → URL base do backend Spring Boot em produção.
-   *
-   * Exemplos comuns de deploy:
-   *   Railway:  'https://festaplanner-api.up.railway.app/api'
-   *   Render:   'https://festaplanner-api.onrender.com/api'
-   *   VPS:      'https://api.seudominio.com.br/api'
-   *
-   * SUBSTITUA pela URL real antes do deploy!
+   * apiUrl → URL base do backend Spring Boot local.
+   * ATENÇÃO: confira sempre no console do Spring Boot qual porta o
+   * Tomcat realmente usou ("Tomcat started on port XXXX") antes de
+   * testar o frontend — a porta pode ser 8080 ou 8081 dependendo se
+   * o XAMPP está ocupando a 8080 nesta máquina.
    */
-  apiUrl: 'https://api.festaplanner.com.br/api'
+  apiUrl: 'http://localhost:8080/api'
 
 };

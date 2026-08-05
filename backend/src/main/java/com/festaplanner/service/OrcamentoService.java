@@ -145,9 +145,12 @@ public class OrcamentoService {
 
     private Orcamento buscarDoCliente(Long orcamentoId, Usuario cliente) {
         Orcamento orcamento = buscarPorId(orcamentoId);
-        if (!orcamento.getCliente().getId().equals(cliente.getId())) {
+
+        if (cliente != null && orcamento.getCliente() != null
+                && !orcamento.getCliente().getId().equals(cliente.getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Este orçamento não pertence a você");
         }
+
         return orcamento;
     }
 

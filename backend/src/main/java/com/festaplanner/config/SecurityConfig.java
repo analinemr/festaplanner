@@ -59,6 +59,18 @@ public class SecurityConfig {
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("GET", "/api/temas/**", "/api/produtos/**").permitAll()
 
+                // "Meus Orçamentos" continua exigindo login (histórico do cliente cadastrado)
+                .requestMatchers("GET", "/api/orcamentos/meus").authenticated()
+
+                // Wizard de orçamento: permite fluxo de visitante, sem precisar logar
+                .requestMatchers("POST", "/api/orcamentos").permitAll()
+                .requestMatchers("PUT", "/api/orcamentos/*/tema/*").permitAll()
+                .requestMatchers("POST", "/api/orcamentos/*/itens").permitAll()
+                .requestMatchers("DELETE", "/api/orcamentos/*/itens/*").permitAll()
+                .requestMatchers("POST", "/api/orcamentos/*/enviar").permitAll()
+                .requestMatchers("POST", "/api/orcamentos/*/salvar-rascunho").permitAll()
+                .requestMatchers("GET", "/api/orcamentos/*").permitAll()
+
                 // Somente ADMINISTRADOR
                 .requestMatchers("/api/admin/**").hasAuthority("ADMINISTRADOR")
                 .requestMatchers("POST", "/api/produtos/**").hasAuthority("ADMINISTRADOR")

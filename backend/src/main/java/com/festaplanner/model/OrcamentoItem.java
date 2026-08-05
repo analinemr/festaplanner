@@ -1,8 +1,8 @@
 package com.festaplanner.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
-
 import java.math.BigDecimal;
 
 /** Um item (produto/serviço) dentro de um orçamento, com sua quantidade. */
@@ -21,6 +21,7 @@ public class OrcamentoItem {
 
     @ManyToOne
     @JoinColumn(name = "orcamento_id", nullable = false)
+    @JsonIgnore
     private Orcamento orcamento;
 
     @ManyToOne
