@@ -1,0 +1,1095 @@
+<!-- NAV (sempre sólida na página de orçamento) -->
+<nav class="nav">
+  <a routerLink="/home" class="nav-logo">
+    <span class="logo-icon">✦</span>
+    <span class="logo-text">Festa<strong>Planner</strong></span>
+  </a>
+  <ul class="nav-links">
+    <li><a routerLink="/home">Início</a></li>
+    <li><a routerLink="/orcamento" class="active">Meus Orçamentos</a></li>
+    <li><a href="#">Mensagens</a></li>
+    <li><a href="#">Conta</a></li>
+  </ul>
+  <a routerLink="/login" class="btn-adm">Área ADM</a>
+</nav>
+
+<section class="orcamento-page">
+
+  <div class="app-layout">
+
+    <main class="selection-panel">
+
+      <div class="progress-bar-wrap">
+        <div class="progress-steps">
+          <button type="button" class="pstep" [class.active]="etapaAtual === 1" [class.done]="etapaAtual > 1" (click)="irParaEtapa(1)">
+            <span>01</span>Evento
+          </button>
+
+          <button type="button" class="pstep" [class.active]="etapaAtual === 2" [class.done]="etapaAtual > 2" (click)="irParaEtapa(2)">
+            <span>02</span>Tema
+          </button>
+
+          <button type="button" class="pstep" [class.active]="etapaAtual === 3" [class.done]="etapaAtual > 3" (click)="irParaEtapa(3)">
+            <span>03</span>Serviços
+          </button>
+
+          <button type="button" class="pstep" [class.active]="etapaAtual === 4" (click)="irParaEtapa(4)">
+            <span>04</span>Confirmar
+          </button>
+        </div>
+
+        <div class="progress-line">
+          <div class="progress-fill" [style.width]="larguraProgresso"></div>
+        </div>
+      </div>
+
+      @if (etapaAtual === 1) {
+        <section class="step-section active">
+          <div class="step-header">
+            <h2 class="step-title">Qual é o <em>tipo de evento?</em></h2>
+            <p class="step-desc">Selecione a categoria e configure os dados principais da sua festa.</p>
+          </div>
+
+          <div class="filter-group">
+            <label class="filter-label">Tipo de Evento</label>
+
+            <div class="event-type-grid">
+              @for (tipo of tiposEvento; track tipo.nome) {
+                <button
+                  type="button"
+                  class="event-type-btn"
+                  [class.active]="tipoEvento === tipo.nome"
+                  (click)="selecionarTipoEvento(tipo.nome)">
+                  <span class="event-icon">{{ tipo.icone }}</span>
+                  {{ tipo.nome }}
+                </button>
+              }
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="filter-group">
+              <label class="filter-label">Data do Evento</label>
+              <input type="date" class="filter-input" [value]="dataEvento" (change)="atualizarData($event)" />
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-label">Nº de Convidados</label>
+
+              <div class="guest-selector">
+                <button type="button" (click)="ajustarConvidados(-10)">−</button>
+                <input
+                  type="number"
+                  [value]="convidados"
+                  min="20"
+                  max="1000"
+                  (change)="atualizarConvidados($event)" />
+                <button type="button" (click)="ajustarConvidados(10)">+</button>
+              </div>
+            </div>
+          </div>
+
+          <button type="button" class="btn-next" (click)="irParaEtapa(2)">
+            Próximo: Escolher Tema →
+          </button>
+        </section>
+      }
+
+      @if (etapaAtual === 2) {
+        <section class="step-section active">
+          <div class="step-header">
+            <h2 class="step-title">Escolha o <em>tema da festa</em></h2>
+            <p class="step-desc">
+              {{ ehEventoInfantil ? 'Selecione um tema infantil e filtre a visualização por perfil.' : ehEventoQuinzeAnos ? 'Selecione um dos temas disponíveis para festa de 15 anos.' : ehEventoTematico ? 'Explore todos os temas disponíveis da casa de festa em uma única visão.' : ehEventoComTemaDePasta ? 'Selecione o tema disponível para esse tipo de evento.' : 'Navegue pelos temas e clique para selecionar o seu favorito.' }}
+            </p>
+            @if (ehEventoInfantil) {
+              <p class="tema-infantil-observacao">Temas infantis com valores iniciais para orçamento visual.</p>
+            }
+          </div>
+
+          @if (ehEventoInfantil) {
+            <div class="temas-infantis-filtros">
+              @for (filtro of filtrosTemaInfantil; track filtro.valor) {
+                <button
+                  type="button"
+                  class="tema-infantil-filtro-btn"
+                  [class.active]="temaInfantilFiltroAtual === filtro.valor"
+                  (click)="selecionarFiltroTemaInfantil(filtro.valor)">
+                  {{ filtro.rotulo }}
+                </button>
+              }
+            </div>
+          }
+
+          <div class="service-carousel-block">
+            <div class="service-carousel-header">
+              <h3 class="carousel-label">{{ ehEventoInfantil ? 'Temas Infantis' : ehEventoQuinzeAnos ? 'Temas de 15 Anos' : ehEventoTematico ? 'Todos os Temas' : ehEventoComTemaDePasta ? 'Tema do Evento' : 'Temas Populares' }}</h3>
+
+              <div class="carousel-controls">
+                <button type="button" class="carr-btn" (click)="scrollCarousel('temas-carousel', -1)">←</button>
+                <button type="button" class="carr-btn" (click)="scrollCarousel('temas-carousel', 1)">→</button>
+              </div>
+            </div>
+
+            <div class="service-carousel-viewport" id="temas-carousel">
+              <div class="service-carousel-track">
+                @if (ehEventoInfantil) {
+                  @for (tema of temasInfantisFiltrados; track tema.id) {
+                    <article
+                      class="service-item theme-item tema-infantil-card"
+                      [class.selected]="tema.selecionado"
+                      [class.tema-infantil-card--selecionado]="tema.selecionado"
+                      (click)="selecionarTema(tema)">
+                      <div class="service-img">
+                        <img [src]="tema.imagem" [alt]="tema.nome">
+                      </div>
+
+                      <div class="service-info">
+                        <h4>{{ tema.nome }}</h4>
+                        <p>{{ tema.descricao }}</p>
+                        <span class="service-price">{{ formatarMoeda(tema.preco) }}</span>
+                      </div>
+
+                      <div class="select-check">✓</div>
+                    </article>
+                  }
+                } @else if (ehEventoQuinzeAnos) {
+                  @for (tema of temasQuinzeAnos; track tema.id) {
+                    <article class="service-item theme-item" [class.selected]="tema.selecionado" (click)="selecionarTema(tema)">
+                      <div class="service-img">
+                        <img [src]="tema.imagem" [alt]="tema.nome">
+                      </div>
+
+                      <div class="service-info">
+                        <h4>{{ tema.nome }}</h4>
+                        <p>{{ tema.descricao }}</p>
+                        <span class="service-price">{{ formatarMoeda(tema.preco) }}</span>
+                      </div>
+
+                      <div class="select-check">✓</div>
+                    </article>
+                  }
+                } @else if (ehEventoTematico) {
+                  @for (tema of temasTematicosDisponiveis; track tema.id) {
+                    <article class="service-item theme-item" [class.selected]="tema.selecionado" (click)="selecionarTema(tema)">
+                      <div class="service-img">
+                        <img [src]="tema.imagem" [alt]="tema.nome">
+                      </div>
+
+                      <div class="service-info">
+                        <h4>{{ tema.nome }}</h4>
+                        <p>{{ tema.descricao }}</p>
+                        <span class="service-price">{{ formatarMoeda(tema.preco) }}</span>
+                      </div>
+
+                      <div class="select-check">✓</div>
+                    </article>
+                  }
+                } @else if (ehEventoComTemaDePasta) {
+                  @for (tema of temasPastasEventoAtual; track tema.id) {
+                    <article class="service-item theme-item" [class.selected]="tema.selecionado" (click)="selecionarTema(tema)">
+                      <div class="service-img">
+                        <img [src]="tema.imagem" [alt]="tema.nome">
+                      </div>
+
+                      <div class="service-info">
+                        <h4>{{ tema.nome }}</h4>
+                        <p>{{ tema.descricao }}</p>
+                        <span class="service-price">{{ formatarMoeda(tema.preco) }}</span>
+                      </div>
+
+                      <div class="select-check">✓</div>
+                    </article>
+                  }
+                } @else {
+                  @for (tema of temasTematicosDisponiveis; track tema.id) {
+                    <article class="service-item theme-item" [class.selected]="tema.selecionado" (click)="selecionarTema(tema)">
+                      <div class="service-img">
+                        <img [src]="tema.imagem" [alt]="tema.nome">
+                      </div>
+
+                      <div class="service-info">
+                        <h4>{{ tema.nome }}</h4>
+                        <p>{{ tema.descricao }}</p>
+                        <span class="service-price">{{ formatarMoeda(tema.preco) }}</span>
+                      </div>
+
+                      <div class="select-check">✓</div>
+                    </article>
+                  }
+                }
+              </div>
+            </div>
+          </div>
+
+          <div class="step-nav">
+            <button type="button" class="btn-back" (click)="irParaEtapa(1)">← Voltar</button>
+            <button type="button" class="btn-next" (click)="irParaEtapa(3)">Próximo: Serviços →</button>
+          </div>
+        </section>
+      }
+
+      @if (etapaAtual === 3) {
+        <section class="step-section active">
+          <div class="step-header">
+            <h2 class="step-title">Monte seu <em>pacote de serviços</em></h2>
+            <p class="step-desc">Selecione os itens desejados. Itens marcados com 🔒 são obrigatórios.</p>
+          </div>
+
+          @for (categoria of categoriasServico; track categoria) {
+            <div class="service-carousel-block">
+              <div class="service-carousel-header">
+                <h3 class="carousel-label">{{ categoria }}</h3>
+
+                <div class="carousel-controls">
+                  <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-' + categoria, -1)">←</button>
+                  <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-' + categoria, 1)">→</button>
+                </div>
+              </div>
+
+              <div class="service-carousel-viewport" [id]="'carousel-' + categoria">
+                <div class="service-carousel-track">
+                  @for (servico of servicosPorCategoria(categoria); track servico.id) {
+                    <article
+                      class="service-item"
+                      [class.selected]="servico.selecionado"
+                      [class.required]="servico.obrigatorio"
+                      (click)="alternarServico(servico)">
+
+                      <div class="service-img">
+                        <img [src]="servico.imagem" [alt]="servico.nome">
+                      </div>
+
+                      <div class="service-info">
+                        <h4>
+                          {{ servico.nome }}
+                          @if (servico.obrigatorio) {
+                            <span>🔒</span>
+                          }
+                        </h4>
+
+                        <p>{{ servico.descricao }}</p>
+                        <span class="service-price">{{ formatarMoeda(servico.preco) }}</span>
+                      </div>
+
+                      <div class="select-check">✓</div>
+                    </article>
+                  }
+                </div>
+              </div>
+            </div>
+
+            @if (categoria === 'Bolo') {
+              <div class="service-carousel-block">
+                <div class="service-carousel-header">
+                  <div>
+                    <h3 class="carousel-label">Docinhos Clássicos</h3>
+                    <p class="docinho-helper">
+                      Ajuste as quantidades com os botões + e −.
+                      @if (totalUnidadesDocinhosClassicos > 0) {
+                        <span>{{ totalUnidadesDocinhosClassicos }} un selecionadas · {{ formatarMoeda(totalValorDocinhosClassicos) }}</span>
+                      }
+                    </p>
+                  </div>
+
+                  <div class="carousel-controls">
+                    <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-docinhos', -1)">←</button>
+                    <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-docinhos', 1)">→</button>
+                  </div>
+                </div>
+
+                <div class="docinho-filters">
+                  @for (filtro of filtrosDocinho; track filtro.valor) {
+                    <button
+                      type="button"
+                      class="docinho-filter-btn"
+                      [class.active]="docinhoFiltroAtual === filtro.valor"
+                      (click)="selecionarFiltroDocinho(filtro.valor)">
+                      {{ filtro.rotulo }}
+                    </button>
+                  }
+                </div>
+
+                <div class="service-carousel-viewport" id="carousel-docinhos">
+                  <div class="service-carousel-track">
+                    @for (docinho of docinhosClassicos; track docinho.id) {
+                      <article class="service-item docinho-item" [class.selected]="docinho.quantidade > 0">
+                        <div class="service-img">
+                          <img [src]="docinho.imagem" [alt]="docinho.nome">
+                        </div>
+
+                        <div class="service-info">
+                          <h4>{{ docinho.nome }}</h4>
+                          <p>
+                            {{ docinho.categoria === 'tradicional' ? 'Tradicional' : 'Gourmet' }} ·
+                            Min. {{ docinho.quantidadeMinima }} un
+                          </p>
+                          <span class="service-price">
+                            {{ formatarMoeda(docinho.precoUnitario) }}
+                            <small>/un</small>
+                          </span>
+
+                          <div class="docinho-counter">
+                            <button type="button" (click)="decrementarDocinho(docinho)">−</button>
+                            <span class="docinho-counter-value">{{ docinho.quantidade }}</span>
+                            <button type="button" (click)="incrementarDocinho(docinho)">+</button>
+                          </div>
+
+                          @if (docinho.quantidade > 0) {
+                            <div class="docinho-subtotal">
+                              Subtotal: {{ formatarMoeda(subtotalDocinho(docinho)) }}
+                            </div>
+                          }
+                        </div>
+
+                        <div class="select-check">✓</div>
+                      </article>
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <div class="service-carousel-block">
+                <div class="service-carousel-header">
+                  <div>
+                    <h3 class="carousel-label">Linha Premium — Doces Finos</h3>
+                    <p class="docinho-helper docinho-helper--premium">
+                      Ideal para casamentos, festas de 15 anos e eventos corporativos sofisticados.
+                      @if (totalUnidadesDocesFinos > 0) {
+                        <span>{{ totalUnidadesDocesFinos }} un selecionadas · {{ formatarMoeda(totalValorDocesFinos) }}</span>
+                      }
+                    </p>
+                  </div>
+
+                  <div class="carousel-controls">
+                    <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-doces-finos', -1)">←</button>
+                    <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-doces-finos', 1)">→</button>
+                  </div>
+                </div>
+
+                <div class="service-carousel-viewport" id="carousel-doces-finos">
+                  <div class="service-carousel-track">
+                    @for (doceFino of docesFinos; track doceFino.id) {
+                      <article class="service-item docinho-item docinho-item--premium" [class.selected]="doceFino.quantidade > 0">
+                        <span class="docinho-card__badge">Premium</span>
+
+                        <div class="service-img">
+                          <img [src]="doceFino.imagem" [alt]="doceFino.nome">
+                        </div>
+
+                        <div class="service-info">
+                          <h4>{{ doceFino.nome }}</h4>
+                          <p>
+                            Doce fino · Min. {{ doceFino.quantidadeMinima }} un
+                          </p>
+                          <span class="service-price">
+                            {{ formatarMoeda(doceFino.precoUnitario) }}
+                            <small>/un</small>
+                          </span>
+
+                          <div class="docinho-counter">
+                            <button type="button" (click)="decrementarDocinho(doceFino)">−</button>
+                            <span class="docinho-counter-value">{{ doceFino.quantidade }}</span>
+                            <button type="button" (click)="incrementarDocinho(doceFino)">+</button>
+                          </div>
+
+                          @if (doceFino.quantidade > 0) {
+                            <div class="docinho-subtotal">
+                              Subtotal: {{ formatarMoeda(subtotalDocinho(doceFino)) }}
+                            </div>
+                          }
+                        </div>
+
+                        <div class="select-check">✓</div>
+                      </article>
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <div class="service-carousel-block salgadinhos-step">
+                <div class="service-carousel-header">
+                  <div>
+                    <h3 class="carousel-label">Salgadinhos Tradicionais</h3>
+                    <p class="docinho-helper">
+                      Clássicos de festa para aniversários, eventos familiares e comemorações em geral.
+                      @if (totalUnidadesSalgadinhosTradicionais > 0) {
+                        <span>{{ totalUnidadesSalgadinhosTradicionais }} un selecionadas · {{ formatarMoeda(totalValorSalgadinhosTradicionais) }}</span>
+                      }
+                    </p>
+                  </div>
+
+                  <div class="carousel-controls">
+                    <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-salgadinhos-tradicionais', -1)">←</button>
+                    <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-salgadinhos-tradicionais', 1)">→</button>
+                  </div>
+                </div>
+
+                <div class="service-carousel-viewport" id="carousel-salgadinhos-tradicionais">
+                  <div class="service-carousel-track">
+                    @for (salgadinho of salgadinhosTradicionais; track salgadinho.id) {
+                      <article class="service-item docinho-item salgadinho-card" [class.selected]="quantidadeSalgadinho(salgadinho) > 0">
+                        <div class="service-img">
+                          <img [src]="salgadinho.imagem" [alt]="salgadinho.nome">
+                        </div>
+
+                        <div class="service-info">
+                          <h4>{{ salgadinho.nome }}</h4>
+                          <p>
+                            Tradicional · Min. {{ salgadinho.quantidadeMinima }} un
+                          </p>
+                          <span class="service-price">
+                            {{ formatarMoeda(salgadinho.precoUnitario) }}
+                            <small>/un</small>
+                          </span>
+
+                          <div class="docinho-counter">
+                            <button type="button" (click)="decrementarSalgadinho(salgadinho)">−</button>
+                            <span class="docinho-counter-value">{{ quantidadeSalgadinho(salgadinho) }}</span>
+                            <button type="button" (click)="incrementarSalgadinho(salgadinho)">+</button>
+                          </div>
+
+                          @if (quantidadeSalgadinho(salgadinho) > 0) {
+                            <div class="docinho-subtotal">
+                              Subtotal: {{ formatarMoeda(subtotalSalgadinho(salgadinho)) }}
+                            </div>
+                          }
+                        </div>
+
+                        <div class="select-check">✓</div>
+                      </article>
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <div class="service-carousel-block salgadinhos-step">
+                <div class="service-carousel-header">
+                  <div>
+                    <h3 class="carousel-label">Linha Premium — Salgados Sofisticados</h3>
+                    <p class="docinho-helper docinho-helper--premium">
+                      Ideal para casamentos, festas de 15 anos e eventos corporativos sofisticados.
+                      @if (totalUnidadesSalgadosSofisticados > 0) {
+                        <span>{{ totalUnidadesSalgadosSofisticados }} un selecionadas · {{ formatarMoeda(totalValorSalgadosSofisticados) }}</span>
+                      }
+                    </p>
+                  </div>
+
+                  <div class="carousel-controls">
+                    <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-salgadinhos-premium', -1)">←</button>
+                    <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-salgadinhos-premium', 1)">→</button>
+                  </div>
+                </div>
+
+                <div class="service-carousel-viewport" id="carousel-salgadinhos-premium">
+                  <div class="service-carousel-track">
+                    @for (salgadinho of salgadosSofisticados; track salgadinho.id) {
+                      <article class="service-item docinho-item docinho-item--premium salgadinho-card salgadinho-card--premium" [class.selected]="quantidadeSalgadinho(salgadinho) > 0">
+                        <span class="docinho-card__badge">Premium</span>
+
+                        <div class="service-img">
+                          <img [src]="salgadinho.imagem" [alt]="salgadinho.nome">
+                        </div>
+
+                        <div class="service-info">
+                          <h4>{{ salgadinho.nome }}</h4>
+                          <p>
+                            Salgado sofisticado · Min. {{ salgadinho.quantidadeMinima }} un
+                          </p>
+                          <span class="service-price">
+                            {{ formatarMoeda(salgadinho.precoUnitario) }}
+                            <small>/un</small>
+                          </span>
+
+                          <div class="docinho-counter">
+                            <button type="button" (click)="decrementarSalgadinho(salgadinho)">−</button>
+                            <span class="docinho-counter-value">{{ quantidadeSalgadinho(salgadinho) }}</span>
+                            <button type="button" (click)="incrementarSalgadinho(salgadinho)">+</button>
+                          </div>
+
+                          @if (quantidadeSalgadinho(salgadinho) > 0) {
+                            <div class="docinho-subtotal">
+                              Subtotal: {{ formatarMoeda(subtotalSalgadinho(salgadinho)) }}
+                            </div>
+                          }
+                        </div>
+
+                        <div class="select-check">✓</div>
+                      </article>
+                    }
+                  </div>
+                </div>
+              </div>
+
+              <div class="service-carousel-block bebidas-step">
+                <div class="service-carousel-header">
+                  <div>
+                    <h3 class="carousel-label">Bebidas</h3>
+                    <p class="docinho-helper">
+                      Controle as bebidas extras com os botões + e −.
+                      @if (totalBebidas > 0 || totalTaxaRolha > 0) {
+                        <span>
+                          @if (totalBebidas > 0) {
+                            {{ bebidasSelecionadas.length }} itens selecionados ·
+                          } @else {
+                            Taxa de rolha ativa ·
+                          }
+                          {{ formatarMoeda(totalBebidas + totalTaxaRolha) }}
+                        </span>
+                      }
+                    </p>
+                  </div>
+
+                  @if (configuracaoBebidas.modo !== 'trazPropia') {
+                    <div class="carousel-controls">
+                      <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-bebidas', -1)">←</button>
+                      <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-bebidas', 1)">→</button>
+                    </div>
+                  }
+                </div>
+
+                @if (configuracaoBebidas.modo === 'inclusa') {
+                  <div class="bebidas-step__card-inclusas">
+                    <strong>Já incluso no seu pacote</strong>
+                    <ul>
+                      @for (itemIncluso of configuracaoBebidas.itensInclusos ?? []; track itemIncluso) {
+                        <li>{{ itemIncluso }}</li>
+                      }
+                    </ul>
+                    <p>Quer adicionar bebidas extras?</p>
+                  </div>
+                }
+
+                @if (configuracaoBebidas.modo === 'consignacao') {
+                  <div class="bebidas-step__aviso">
+                    Os valores abaixo são uma estimativa de consumo. A cobrança final será feita conforme o consumo real no dia do evento.
+                  </div>
+                }
+
+                @if (configuracaoBebidas.modo === 'trazPropia') {
+                  <div class="bebidas-step__card-rolha">
+                    <strong>Você pode trazer sua própria bebida</strong>
+                    <p>{{ configuracaoBebidas.observacoesRolha }}</p>
+                    <p>Taxa de rolha: {{ formatarMoeda(configuracaoBebidas.taxaRolha ?? 0) }}</p>
+
+                    <label class="bebidas-step__checkbox">
+                      <input type="checkbox" [checked]="trazPropiaConfirmado" (change)="toggleTrazPropia()" />
+                      <span>Quero trazer minha própria bebida e pagar a taxa de rolha</span>
+                    </label>
+                  </div>
+                }
+
+                @if (configuracaoBebidas.modo !== 'trazPropia') {
+                  <div class="service-carousel-viewport" id="carousel-bebidas">
+                    <div class="service-carousel-track">
+                      @for (bebida of bebidasAtivas(); track bebida.id) {
+                        <article class="service-item docinho-item bebida-card" [class.selected]="quantidadeBebida(bebida) > 0">
+                          <div class="service-info">
+                            <div class="bebida-card__icone">{{ iconeBebida[bebida.categoria] }}</div>
+                            <h4>{{ bebida.nome }}</h4>
+                            <p>Min. {{ bebida.quantidadeMinima }} un</p>
+                            <span class="service-price">
+                              {{ formatarMoeda(bebida.precoUnitario) }}
+                              <small>/un</small>
+                            </span>
+
+                            <div class="docinho-counter">
+                              <button type="button" (click)="decrementarBebida(bebida)">−</button>
+                              <span class="docinho-counter-value">{{ quantidadeBebida(bebida) }}</span>
+                              <button type="button" (click)="incrementarBebida(bebida)">+</button>
+                            </div>
+
+                            @if (quantidadeBebida(bebida) > 0) {
+                              <div class="docinho-subtotal">
+                                Subtotal: {{ formatarMoeda(subtotalBebida(bebida)) }}
+                              </div>
+                            }
+                          </div>
+
+                          <div class="select-check">✓</div>
+                        </article>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+
+              <div class="service-carousel-block decoracao-step">
+                <div class="service-carousel-header">
+                  <div>
+                    <h3 class="carousel-label">Decoração</h3>
+                    <p class="docinho-helper">
+                      Combine itens com preço fixo e pedidos personalizados para montar a ambientação da sua festa.
+                      @if (totalDecoracao > 0 || itensDecoracaoAguardandoOrcamento.length > 0) {
+                        <span>
+                          @if (totalDecoracao > 0) {
+                            {{ decoracaoSelecionada.length }} itens com valor · {{ formatarMoeda(totalDecoracao) }}
+                          }
+                          @if (itensDecoracaoAguardandoOrcamento.length > 0) {
+                            @if (totalDecoracao > 0) {
+                              ·
+                            }
+                            {{ itensDecoracaoAguardandoOrcamento.length }} pendentes
+                          }
+                        </span>
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                @for (categoriaDecoracao of categoriasDecoracao; track categoriaDecoracao) {
+                  <div class="decoracao-step__categoria">
+                    <h4 class="decoracao-step__categoria-titulo">{{ titulosDecoracao[categoriaDecoracao] }}</h4>
+
+                    <div class="decoracao-step__grid">
+                      @for (item of itensDecoracaoPorCategoria(categoriaDecoracao); track item.id) {
+                        <article
+                          class="service-item decoracao-card"
+                          [class.selected]="item.sobOrcamento ? solicitacoesDecoracao[item.id]?.solicitado : quantidadeDecoracao(item) > 0">
+
+                          <div class="service-img decoracao-card__imagem">
+                            <img [src]="item.imagem" [alt]="item.nome">
+                          </div>
+
+                          <div class="service-info">
+                            <span class="decoracao-card__fornecimento">{{ labelFornecimento[item.fornecimento] }}</span>
+                            <h4>{{ item.nome }}</h4>
+                            <p class="decoracao-card__descricao-curta">{{ item.descricaoCurta }}</p>
+
+                            <button type="button" class="decoracao-card__btn-detalhes" (click)="toggleDetalhesDecoracao(item)">
+                              {{ decoracaoExpandida[item.id] ? 'Ocultar detalhes' : 'O que está incluso?' }}
+                            </button>
+
+                            @if (decoracaoExpandida[item.id]) {
+                              <div class="decoracao-card__detalhes">
+                                <div class="decoracao-card__inclusos">
+                                  <strong>Inclusos</strong>
+                                  <ul>
+                                    @for (itemIncluso of item.itensInclusos; track itemIncluso) {
+                                      <li>{{ itemIncluso }}</li>
+                                    }
+                                  </ul>
+                                </div>
+
+                                <div class="decoracao-card__nao-inclusos">
+                                  <strong>Não inclusos</strong>
+                                  <ul>
+                                    @for (itemNaoIncluso of item.itensNaoInclusos; track itemNaoIncluso) {
+                                      <li>{{ itemNaoIncluso }}</li>
+                                    }
+                                  </ul>
+                                </div>
+                              </div>
+                            }
+
+                            @if (!item.sobOrcamento) {
+                              <span class="service-price">
+                                {{ formatarMoeda(item.precoUnitario) }}
+                                <small>{{ labelUnidade[item.unidadeMedida] }}</small>
+                              </span>
+
+                              <div class="docinho-counter">
+                                <button type="button" (click)="decrementarDecoracao(item)">−</button>
+                                <span class="docinho-counter-value">{{ quantidadeDecoracao(item) }}</span>
+                                <button type="button" (click)="incrementarDecoracao(item)">+</button>
+                              </div>
+
+                              @if (quantidadeDecoracao(item) > 0) {
+                                <div class="docinho-subtotal">
+                                  Subtotal: {{ formatarMoeda(subtotalDecoracao(item)) }}
+                                </div>
+                              }
+                            } @else {
+                              <div class="decoracao-card__orcamento">
+                                @if (item.precoReferencia) {
+                                  <div class="decoracao-card__preco-referencia">{{ item.precoReferencia }}</div>
+                                }
+
+                                <p>O valor final será confirmado pela casa.</p>
+
+                                <button type="button" class="btn-orcamento-decoracao" (click)="toggleSolicitarDecoracao(item)">
+                                  {{ solicitacoesDecoracao[item.id]?.solicitado ? 'Orçamento solicitado' : 'Solicitar orçamento personalizado' }}
+                                </button>
+
+                                @if (solicitacoesDecoracao[item.id]?.solicitado) {
+                                  <textarea
+                                    class="filter-input"
+                                    rows="3"
+                                    placeholder="Descreva tema, cores, referências e observações."
+                                    [value]="solicitacoesDecoracao[item.id]?.observacoes"
+                                    (input)="atualizarObservacaoDecoracao(item, $any($event.target).value)"></textarea>
+                                }
+                              </div>
+                            }
+                          </div>
+
+                          <div class="select-check">✓</div>
+                        </article>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+
+              <div class="service-carousel-block musica-animacao-step">
+                <div class="service-carousel-header">
+                  <div>
+                    <h3 class="carousel-label">♪ MÚSICA & ANIMAÇÃO</h3>
+                    <p class="docinho-helper">
+                      Serviços opcionais com atendimento de até 6 horas.
+                      @if (totalMusicaAnimacao > 0) {
+                        <span>{{ musicaAnimacaoSelecionados.length }} itens selecionados · {{ formatarMoeda(totalMusicaAnimacao) }}</span>
+                      }
+                    </p>
+                  </div>
+
+                  <div class="carousel-controls">
+                    <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-musica-animacao', -1)">←</button>
+                    <button type="button" class="carr-btn" (click)="scrollCarousel('carousel-musica-animacao', 1)">→</button>
+                  </div>
+                </div>
+
+                <div class="service-carousel-viewport" id="carousel-musica-animacao">
+                  <div class="service-carousel-track">
+                    @for (item of itensMusicaAnimacao; track item.id) {
+                      <article class="service-item musica-animacao-card" [class.selected]="item.selecionado" (click)="toggleMusicaAnimacao(item)">
+                        <div class="service-img musica-animacao-card__imagem">
+                          <img [src]="item.imagem" [alt]="item.nome">
+                        </div>
+
+                        <div class="service-info">
+                          <h4>{{ item.nome }}</h4>
+                          <p>{{ item.descricaoCurta }}</p>
+                          <span class="service-price musica-animacao-card__preco">{{ formatarMoeda(item.preco) }}</span>
+
+                          <button
+                            type="button"
+                            class="musica-animacao-card__btn"
+                            (click)="$event.stopPropagation(); toggleMusicaAnimacao(item)">
+                            {{ item.selecionado ? 'Remover' : 'Selecionar' }}
+                          </button>
+                        </div>
+
+                        <div class="select-check">✓</div>
+                      </article>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+          }
+
+          <div class="step-nav">
+            <button type="button" class="btn-back" (click)="irParaEtapa(2)">← Voltar</button>
+            <button type="button" class="btn-next" (click)="irParaEtapa(4)">Próximo: Confirmar →</button>
+          </div>
+        </section>
+      }
+
+      @if (etapaAtual === 4) {
+        <section class="step-section active">
+          <div class="step-header">
+            <h2 class="step-title">Confirme e <em>envie o pedido</em></h2>
+            <p class="step-desc">Preencha seus dados de contato e finalize o orçamento.</p>
+          </div>
+
+          <div class="confirm-form">
+            <div class="form-row">
+              <div class="filter-group">
+                <label class="filter-label">Nome Completo</label>
+                <input type="text" class="filter-input" placeholder="Seu nome completo" />
+              </div>
+
+              <div class="filter-group">
+                <label class="filter-label">E-mail</label>
+                <input type="email" class="filter-input" placeholder="seu@email.com" />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="filter-group">
+                <label class="filter-label">WhatsApp</label>
+                <input type="tel" class="filter-input" placeholder="(21) 99999-9999" />
+              </div>
+
+              <div class="filter-group">
+                <label class="filter-label">Melhor horário para contato</label>
+                <select class="filter-input">
+                  <option>Manhã das 8h às 12h</option>
+                  <option>Tarde das 12h às 18h</option>
+                  <option>Noite das 18h às 21h</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="filter-group">
+              <label class="filter-label">Observações adicionais</label>
+              <textarea class="filter-input" rows="4" placeholder="Alguma preferência especial, restrição alimentar ou detalhe importante..."></textarea>
+            </div>
+
+            <div class="confirm-summary">
+              <h4>Resumo do Pedido</h4>
+
+              <p>
+                <strong>{{ tipoEvento }}</strong> · {{ convidados }} convidados
+              </p>
+
+              @if (temaSelecionado) {
+                <p>Tema: {{ temaSelecionado.nome }}</p>
+              }
+
+              <div class="confirm-items">
+                @for (item of itensSelecionados; track item.id) {
+                  <div>
+                    <span>{{ item.nome }}</span>
+                    <strong>{{ formatarMoeda(item.preco) }}</strong>
+                  </div>
+                }
+
+                @for (docinho of docinhosSelecionados; track docinho.id) {
+                  <div>
+                    <span>{{ docinho.nome }} · {{ docinho.quantidade }} un</span>
+                    <strong>{{ formatarMoeda(subtotalDocinho(docinho)) }}</strong>
+                  </div>
+                }
+
+                @for (salgadinho of salgadinhosSelecionados; track salgadinho.id) {
+                  <div>
+                    <span>{{ salgadinho.nome }} · {{ quantidadeSalgadinho(salgadinho) }} un</span>
+                    <strong>{{ formatarMoeda(subtotalSalgadinho(salgadinho)) }}</strong>
+                  </div>
+                }
+
+                @for (bebida of bebidasSelecionadas; track bebida.bebidaId) {
+                  <div>
+                    <span>{{ bebida.nome }} · {{ bebida.quantidade }} un</span>
+                    <strong>{{ formatarMoeda(bebida.subtotal) }}</strong>
+                  </div>
+                }
+
+                @if (totalTaxaRolha > 0) {
+                  <div>
+                    <span>Taxa de rolha</span>
+                    <strong>{{ formatarMoeda(totalTaxaRolha) }}</strong>
+                  </div>
+                }
+
+                @for (itemDecoracao of decoracaoSelecionada; track itemDecoracao.itemId) {
+                  <div>
+                    <span>{{ itemDecoracao.nome }} · {{ itemDecoracao.quantidade }} {{ labelUnidadeResumo[itemDecoracao.unidadeMedida] }}</span>
+                    <strong>{{ formatarMoeda(itemDecoracao.subtotal) }}</strong>
+                  </div>
+                }
+
+                @for (solicitacao of itensDecoracaoAguardandoOrcamento; track solicitacao.itemId) {
+                  <div>
+                    <span>{{ solicitacao.nome }} · aguardando orçamento personalizado</span>
+                    <strong>Pendente</strong>
+                  </div>
+                }
+
+                @for (itemMusicaAnimacao of musicaAnimacaoSelecionados; track itemMusicaAnimacao.id) {
+                  <div>
+                    <span>{{ itemMusicaAnimacao.nome }} · até {{ itemMusicaAnimacao.duracaoHoras }}h</span>
+                    <strong>{{ formatarMoeda(itemMusicaAnimacao.preco) }}</strong>
+                  </div>
+                }
+              </div>
+
+              <div class="confirm-total">
+                <span>Total Estimado</span>
+                <strong>{{ formatarMoeda(total) }}</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="step-nav">
+            <button type="button" class="btn-back" (click)="irParaEtapa(3)">← Voltar</button>
+            <button type="button" class="btn-submit" (click)="enviarOrcamento()">✓ Enviar Orçamento</button>
+          </div>
+        </section>
+      }
+
+    </main>
+
+    <aside class="budget-aside">
+      <div class="budget-aside-inner">
+        <div class="budget-header">
+          <span class="budget-eyebrow">Resumo</span>
+          <h3 class="budget-title">Seu Orçamento</h3>
+          <div class="budget-meta">{{ tipoEvento }} · {{ convidados }} convidados</div>
+        </div>
+
+        <div class="budget-items">
+          @if (!temItensNoResumo) {
+            <div class="budget-empty">Nenhum item selecionado ainda.</div>
+          } @else {
+            @for (item of itensSelecionados; track item.id) {
+              <div class="budget-line-item">
+                <span class="budget-item-name" [class.required]="item.obrigatorio">
+                  {{ item.categoria === 'Tema' ? 'Tema: ' + item.nome : item.nome }}
+                  @if (item.obrigatorio) {
+                    <span>🔒</span>
+                  }
+                </span>
+
+                <span class="budget-item-price">{{ formatarMoeda(item.preco) }}</span>
+
+                @if (!item.obrigatorio) {
+                  <button type="button" class="budget-item-remove" (click)="removerItem(item)" title="Remover">
+                    ✕
+                  </button>
+                }
+              </div>
+            }
+
+            @for (docinho of docinhosSelecionados; track docinho.id) {
+              <div class="budget-line-item">
+                <span class="budget-item-name">
+                  {{ docinho.nome }} · {{ docinho.quantidade }} un
+                </span>
+
+                <span class="budget-item-price">{{ formatarMoeda(subtotalDocinho(docinho)) }}</span>
+
+                <button type="button" class="budget-item-remove" (click)="limparDocinho(docinho)" title="Remover">
+                  ✕
+                </button>
+              </div>
+            }
+
+            @for (salgadinho of salgadinhosSelecionados; track salgadinho.id) {
+              <div class="budget-line-item">
+                <span class="budget-item-name">
+                  {{ salgadinho.nome }} · {{ quantidadeSalgadinho(salgadinho) }} un
+                </span>
+
+                <span class="budget-item-price">{{ formatarMoeda(subtotalSalgadinho(salgadinho)) }}</span>
+
+                <button type="button" class="budget-item-remove" (click)="limparSalgadinho(salgadinho)" title="Remover">
+                  ✕
+                </button>
+              </div>
+            }
+
+            @for (bebida of bebidasSelecionadas; track bebida.bebidaId) {
+              <div class="budget-line-item">
+                <span class="budget-item-name">
+                  {{ bebida.nome }} · {{ bebida.quantidade }} un
+                </span>
+
+                <span class="budget-item-price">{{ formatarMoeda(bebida.subtotal) }}</span>
+
+                <button type="button" class="budget-item-remove" (click)="limparBebida(bebida.bebidaId)" title="Remover">
+                  ✕
+                </button>
+              </div>
+            }
+
+            @if (totalTaxaRolha > 0) {
+              <div class="budget-line-item">
+                <span class="budget-item-name">
+                  Taxa de rolha
+                </span>
+
+                <span class="budget-item-price">{{ formatarMoeda(totalTaxaRolha) }}</span>
+
+                <button type="button" class="budget-item-remove" (click)="toggleTrazPropia()" title="Remover">
+                  ✕
+                </button>
+              </div>
+            }
+
+            @for (itemDecoracao of decoracaoSelecionada; track itemDecoracao.itemId) {
+              <div class="budget-line-item">
+                <span class="budget-item-name">
+                  {{ itemDecoracao.nome }} · {{ itemDecoracao.quantidade }} {{ labelUnidadeResumo[itemDecoracao.unidadeMedida] }}
+                </span>
+
+                <span class="budget-item-price">{{ formatarMoeda(itemDecoracao.subtotal) }}</span>
+
+                <button type="button" class="budget-item-remove" (click)="limparDecoracao(itemDecoracao.itemId)" title="Remover">
+                  ✕
+                </button>
+              </div>
+            }
+
+            @for (solicitacao of itensDecoracaoAguardandoOrcamento; track solicitacao.itemId) {
+              <div class="budget-line-item">
+                <span class="budget-item-name">
+                  {{ solicitacao.nome }} · aguardando orçamento personalizado
+                </span>
+
+                <span class="budget-item-price">Pendente</span>
+
+                <button type="button" class="budget-item-remove" (click)="cancelarSolicitacaoDecoracao(solicitacao.itemId)" title="Remover">
+                  ✕
+                </button>
+              </div>
+            }
+
+            @for (itemMusicaAnimacao of musicaAnimacaoSelecionados; track itemMusicaAnimacao.id) {
+              <div class="budget-line-item">
+                <span class="budget-item-name">
+                  {{ itemMusicaAnimacao.nome }} · até {{ itemMusicaAnimacao.duracaoHoras }}h
+                </span>
+
+                <span class="budget-item-price">{{ formatarMoeda(itemMusicaAnimacao.preco) }}</span>
+
+                <button type="button" class="budget-item-remove" (click)="toggleMusicaAnimacao(itemMusicaAnimacao)" title="Remover">
+                  ✕
+                </button>
+              </div>
+            }
+          }
+        </div>
+
+        <div class="budget-total-block">
+          <div class="budget-total-row">
+            <span>Subtotal</span>
+            <span>{{ formatarMoeda(subtotal) }}</span>
+          </div>
+
+          <div class="budget-total-row tax">
+            <span>Taxa de serviço 5%</span>
+            <span>{{ formatarMoeda(taxaServico) }}</span>
+          </div>
+
+          <div class="budget-total-row grand">
+            <strong>Total Estimado</strong>
+            <strong class="total-price">{{ formatarMoeda(total) }}</strong>
+          </div>
+        </div>
+
+        <div class="budget-cta">
+          <button type="button" class="btn-save-budget" [class.saved]="rascunhoSalvo" (click)="salvarRascunho()">
+            {{ rascunhoSalvo ? '✓ Rascunho salvo!' : '💾 Salvar rascunho' }}
+          </button>
+
+          <button type="button" class="btn-send-budget" (click)="irParaEtapa(4)">
+            Finalizar →
+          </button>
+        </div>
+
+        <p class="budget-disclaimer">
+          * Valores estimados. O preço final pode variar após confirmação com a casa de festas.
+        </p>
+      </div>
+    </aside>
+
+  </div>
+
+</section>
+
+<!-- MODAL DE SUCESSO -->
+<div class="modal-overlay" [class.open]="modalAberto">
+  <div class="modal">
+    <span class="modal-icon">✦</span>
+    <h3>Orçamento Enviado!</h3>
+    <p>Recebemos sua solicitação. A casa de festas entrará em contato em até 24 horas para confirmar a disponibilidade de data e os detalhes do evento.</p>
+    @if (numeroPedido) {
+      <p class="modal-ref"><strong>Nº do pedido: {{ numeroPedido }}</strong></p>
+    }
+    <br />
+    <a routerLink="/home" class="btn-next" style="display:inline-block">Voltar ao início</a>
+  </div>
+</div>
