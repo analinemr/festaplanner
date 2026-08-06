@@ -542,8 +542,8 @@
                         [(ngModel)]="observacoes" name="observacoes"></textarea>
             </div>
 
-            @if (erroEnvio) {
-              <p style="color:#d4a017; font-size:0.85rem; margin-top:12px;">{{ erroEnvio }}</p>
+            @if (erroEnvio()) {
+              <p style="color:#d4a017; font-size:0.85rem; margin-top:12px;">{{ erroEnvio() }}</p>
             }
 
             <div class="confirm-summary">
@@ -586,9 +586,9 @@
           </div>
 
           <div class="step-nav">
-            <button type="button" class="btn-back" (click)="irParaEtapa(3)" [disabled]="enviando">← Voltar</button>
-            <button type="button" class="btn-submit" (click)="enviarOrcamento()" [disabled]="enviando">
-              {{ enviando ? 'Enviando...' : '✓ Enviar Orçamento' }}
+            <button type="button" class="btn-back" (click)="irParaEtapa(3)" [disabled]="enviando()">← Voltar</button>
+            <button type="button" class="btn-submit" (click)="enviarOrcamento()" [disabled]="enviando()">
+              {{ enviando() ? 'Enviando...' : '✓ Enviar Orçamento' }}
             </button>
           </div>
         </section>
@@ -702,13 +702,13 @@
 </section>
 
 <!-- MODAL DE SUCESSO -->
-<div class="modal-overlay" [class.open]="modalAberto">
+<div class="modal-overlay" [class.open]="modalAberto()">
   <div class="success-modal">
     <span class="modal-icon">✦</span>
     <h3>Orçamento Enviado!</h3>
     <p>Recebemos sua solicitação. A casa de festas entrará em contato em até 24 horas para confirmar a disponibilidade de data e os detalhes do evento.</p>
-    @if (numeroPedido) {
-      <p class="modal-ref"><strong>Nº do pedido: {{ numeroPedido }}</strong></p>
+    @if (numeroPedido()) {
+      <p class="modal-ref"><strong>Nº do pedido: {{ numeroPedido() }}</strong></p>
     }
     <br />
     <a routerLink="/home" class="btn-next" style="display:inline-block">Voltar ao início</a>

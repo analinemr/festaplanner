@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
@@ -40,9 +40,16 @@ export class OrcamentoComponent implements OnInit {
   tipoEvento = 'Casamento';
   convidados = 100;
   dataEvento = '';
-  modalAberto = false;
+
+  // ---- Convertidos para signal() porque o app roda em modo zoneless (Angular 21) ----
+  // Propriedades comuns não disparam re-renderização automática quando alteradas
+  // dentro de async/await (ex: após chamadas HTTP encadeadas). Signals resolvem isso.
+  modalAberto = signal(false);
+  enviando = signal(false);
+  numeroPedido = signal('');
+  erroEnvio = signal('');
+
   rascunhoSalvo = false;
-  numeroPedido = '';
 
   // ---- Catálogo real vindo do backend ----
   produtos: ApiProduto[] = [];
@@ -68,10 +75,6 @@ export class OrcamentoComponent implements OnInit {
   whatsappContato = '';
   melhorHorarioContato = 'Manhã das 8h às 12h';
   observacoes = '';
-
-  // ---- Estado do envio real ao backend ----
-  enviando = false;
-  erroEnvio = '';
 
   readonly filtrosDocinho: DocinhoFilterOption[] = [
     { valor: 'todos', rotulo: 'Todos' },
@@ -527,14 +530,14 @@ export class OrcamentoComponent implements OnInit {
   }
 
   async enviarOrcamento(): Promise<void> {
-    this.erroEnvio = '';
+    this.erroEnvio.set('');
 
     if (!this.nomeContato || !this.emailContato || !this.whatsappContato) {
-      this.erroEnvio = 'Preencha nome, e-mail e WhatsApp para enviar o orçamento.';
+      this.erroEnvio.set('Preencha nome, e-mail e WhatsApp para enviar o orçamento.');
       return;
     }
 
-    this.enviando = true;
+    this.enviando.set(true);
 
     try {
       const eventoRequest: OrcamentoEventoRequest = {
@@ -562,18 +565,18 @@ export class OrcamentoComponent implements OnInit {
       };
       const resultado = await firstValueFrom(this.orcamentoApi.enviar(orcamentoId, confirmarRequest));
 
-      this.numeroPedido = '#FP-' + resultado.id;
-      this.modalAberto = true;
+      this.numeroPedido.set('#FP-' + resultado.id);
+      this.modalAberto.set(true);
     } catch (erro) {
       console.error('Erro ao enviar orçamento:', erro);
-      this.erroEnvio = 'Não foi possível enviar seu orçamento agora. Tente novamente em instantes.';
+      this.erroEnvio.set('Não foi possível enviar seu orçamento agora. Tente novamente em instantes.');
     } finally {
-      this.enviando = false;
+      this.enviando.set(false);
     }
   }
 
   fecharModal(): void {
-    this.modalAberto = false;
+    this.modalAberto.set(false);
   }
 
   formatarMoeda(valor: number): string {
