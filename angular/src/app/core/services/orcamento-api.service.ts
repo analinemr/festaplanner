@@ -1,16 +1,18 @@
 /**
  * SERVIÇO: OrcamentoApiService
  *
- * Implementa o fluxo real do wizard de orçamento contra o backend Spring Boot,
- * em substituição ao método enviarOrcamento() antigo, que só simulava sucesso
- * com um número de pedido aleatório (Math.random()) sem chamar a API.
+ * Implementa o fluxo real do wizard de orçamento contra o backend Spring Boot
+ * (cliente/visitante) e os endpoints administrativos da tela "Pedidos" do ADM.
  *
- * Fluxo (precisa de usuário CLIENTE autenticado — o AuthController /login
- * já devolve o token, e o authInterceptor já anexa o header Authorization):
+ * Fluxo do cliente (visitante ou logado):
  *   1. POST /api/orcamentos                         → cria o orçamento (etapa 1)
  *   2. PUT  /api/orcamentos/{id}/tema/{temaId}       → define o tema (etapa 2)
  *   3. POST /api/orcamentos/{id}/itens (repetido)    → adiciona cada item (etapa 3)
  *   4. POST /api/orcamentos/{id}/enviar              → confirma e envia (etapa 4)
+ *
+ * Endpoints do ADM (exigem ADMINISTRADOR — ver SecurityConfig, /api/admin/**):
+ *   GET   /api/admin/orcamentos?status=NOVO   → lista pedidos (tela "Pedidos")
+ *   PATCH /api/admin/orcamentos/{id}/status   → aprova/recusa/move de status
  */
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
@@ -36,11 +38,40 @@ export interface OrcamentoConfirmarRequest {
   observacoes?: string;
 }
 
-/** Espelha com.festaplanner.model.Orcamento no backend (campos usados aqui). */
+export interface ApiOrcamentoItem {
+  id: number;
+  produto: {
+    id: number;
+    nome: string;
+    categoria: string;
+    valor: number;
+    [key: string]: unknown;
+  };
+  quantidade: number;
+  valorUnitario: number;
+  subtotal: number;
+}
+
+/** Espelha com.festaplanner.model.Orcamento no backend. */
 export interface ApiOrcamento {
   id: number;
+  cliente?: { id: number; nome: string; email: string } | null;
+  tipoEvento: string;
+  tema?: { id: number; nome: string; valor: number } | null;
+  numeroConvidados: number;
+  dataEvento?: string;
   status: string;
+  itens: ApiOrcamentoItem[];
+  subtotal: number;
+  taxaServicoPercentual: number;
   totalEstimado: number;
+  nomeContato?: string;
+  emailContato?: string;
+  whatsappContato?: string;
+  melhorHorarioContato?: string;
+  observacoes?: string;
+  criadoEm?: string;
+  atualizadoEm?: string;
   [key: string]: unknown;
 }
 
@@ -50,8 +81,11 @@ export interface ApiOrcamento {
 export class OrcamentoApiService {
 
   private readonly apiUrl = `${environment.apiUrl}/orcamentos`;
+  private readonly adminUrl = `${environment.apiUrl}/admin/orcamentos`;
 
   constructor(private http: HttpClient) {}
+
+  // ==================== FLUXO DO CLIENTE (wizard) ====================
 
   iniciar(request: OrcamentoEventoRequest): Observable<ApiOrcamento> {
     return this.http.post<ApiOrcamento>(this.apiUrl, request);
@@ -71,5 +105,21 @@ export class OrcamentoApiService {
 
   salvarRascunho(orcamentoId: number): Observable<ApiOrcamento> {
     return this.http.post<ApiOrcamento>(`${this.apiUrl}/${orcamentoId}/salvar-rascunho`, {});
+  }
+
+  // ==================== ADMIN (tela "Pedidos") ====================
+
+  /** Lista os pedidos para o ADM. Sem status: retorna tudo exceto rascunhos. */
+  listarParaAdmin(status?: string): Observable<ApiOrcamento[]> {
+    const params: Record<string, string> = {};
+    if (status) {
+      params['status'] = status;
+    }
+    return this.http.get<ApiOrcamento[]>(this.adminUrl, { params });
+  }
+
+  /** Atualiza o status de um pedido (ex: 'CONFIRMADO', 'RECUSADO', 'PRE_RESERVA'). */
+  atualizarStatusAdmin(id: number, status: string): Observable<ApiOrcamento> {
+    return this.http.patch<ApiOrcamento>(`${this.adminUrl}/${id}/status`, { status });
   }
 }

@@ -59,6 +59,9 @@ public class SecurityConfig {
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("GET", "/api/temas/**", "/api/produtos/**").permitAll()
 
+                // Imagens enviadas pelo ADM ficam públicas (usadas no catálogo e no wizard do cliente)
+                .requestMatchers("GET", "/uploads/**").permitAll()
+
                 // "Meus Orçamentos" continua exigindo login (histórico do cliente cadastrado)
                 .requestMatchers("GET", "/api/orcamentos/meus").authenticated()
 
@@ -76,6 +79,7 @@ public class SecurityConfig {
                 .requestMatchers("POST", "/api/produtos/**").hasAuthority("ADMINISTRADOR")
                 .requestMatchers("PUT", "/api/produtos/**").hasAuthority("ADMINISTRADOR")
                 .requestMatchers("DELETE", "/api/produtos/**").hasAuthority("ADMINISTRADOR")
+                .requestMatchers("POST", "/api/uploads/**").hasAuthority("ADMINISTRADOR")
 
                 // Demais rotas exigem usuário autenticado (cliente ou admin)
                 .anyRequest().authenticated()

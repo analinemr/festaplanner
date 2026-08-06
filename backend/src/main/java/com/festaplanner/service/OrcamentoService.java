@@ -138,6 +138,21 @@ public class OrcamentoService {
                 : orcamentoRepository.findAllByOrderByCriadoEmDesc();
     }
 
+    /**
+     * Listagem para a tela "Pedidos" do ADM.
+     * Sem filtro de status: retorna tudo MENOS rascunhos, já que um orçamento em
+     * RASCUNHO é só um carrinho ainda em montagem pelo cliente no wizard — não é
+     * um pedido de verdade até ele confirmar e enviar (etapa 04).
+     */
+    public List<Orcamento> listarParaAdmin(StatusOrcamento status) {
+        if (status != null) {
+            return orcamentoRepository.findByStatusOrderByCriadoEmDesc(status);
+        }
+        return orcamentoRepository.findAllByOrderByCriadoEmDesc().stream()
+                .filter(o -> o.getStatus() != StatusOrcamento.RASCUNHO)
+                .toList();
+    }
+
     public Orcamento buscarPorId(Long id) {
         return orcamentoRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Orçamento não encontrado"));

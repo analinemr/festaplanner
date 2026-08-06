@@ -86,16 +86,16 @@
           </thead>
           <tbody>
             <tr *ngFor="let p of pedidosRecentes">
-              <td>#{{ p.num }}</td>
-              <td><strong>{{ p.client }}</strong></td>
-              <td>{{ p.event }} · {{ p.guests }} conv.</td>
-              <td>{{ p.date }}</td>
-              <td>R$ {{ p.value.toLocaleString('pt-BR') }}</td>
-              <td><span class="status-badge" [ngClass]="statusClass(p.status)">{{ p.status }}</span></td>
+              <td>#{{ p.id }}</td>
+              <td><strong>{{ p.nomeContato }}</strong></td>
+              <td>{{ labelTipoEvento(p.tipoEvento) }} · {{ p.numeroConvidados }} conv.</td>
+              <td>{{ formatarData(p.dataEvento) }}</td>
+              <td>R$ {{ p.totalEstimado.toLocaleString('pt-BR') }}</td>
+              <td><span class="status-badge" [ngClass]="statusClass(p.status)">{{ labelStatus(p.status) }}</span></td>
               <td class="actions-cell">
                 <button class="action-btn view" (click)="openModal(p)" title="Ver detalhes">👁</button>
-                <button class="action-btn approve" (click)="changeStatus(p,'Confirmado')" title="Confirmar">✓</button>
-                <button class="action-btn reject" (click)="changeStatus(p,'Rejeitado')" title="Rejeitar">✕</button>
+                <button class="action-btn approve" (click)="changeStatus(p,'CONFIRMADO')" title="Confirmar">✓</button>
+                <button class="action-btn reject" (click)="changeStatus(p,'RECUSADO')" title="Rejeitar">✕</button>
               </td>
             </tr>
           </tbody>
@@ -165,34 +165,47 @@
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <select class="filter-sel" (change)="filtrarPorStatus($event)">
             <option value="">Todos os status</option>
-            <option value="Novo">Novos</option>
-            <option value="Pendente">Pendentes</option>
-            <option value="Pré-Reserva">Pré-Reserva</option>
-            <option value="Confirmado">Confirmados</option>
+            <option value="NOVO">Novos</option>
+            <option value="PENDENTE">Pendentes</option>
+            <option value="PRE_RESERVA">Pré-Reserva</option>
+            <option value="CONFIRMADO">Confirmados</option>
+            <option value="RECUSADO">Recusados</option>
           </select>
           <input type="text" class="filter-sel" placeholder="Buscar cliente..."
                  [(ngModel)]="termoBusca" (input)="filtrarPedidos()" />
         </div>
       </div>
-      <table class="data-table">
-        <thead><tr><th>Nº</th><th>Cliente</th><th>Evento</th><th>Data</th><th>Conv.</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
-        <tbody>
-          <tr *ngFor="let p of pedidosFiltrados">
-            <td>#{{ p.num }}</td>
-            <td><strong>{{ p.client }}</strong></td>
-            <td>{{ p.event }}</td>
-            <td>{{ p.date }}</td>
-            <td>{{ p.guests }} conv.</td>
-            <td>R$ {{ p.value.toLocaleString('pt-BR') }}</td>
-            <td><span class="status-badge" [ngClass]="statusClass(p.status)">{{ p.status }}</span></td>
-            <td class="actions-cell">
-              <button class="action-btn view" (click)="openModal(p)">👁</button>
-              <button class="action-btn approve" (click)="changeStatus(p,'Confirmado')">✓</button>
-              <button class="action-btn reject" (click)="changeStatus(p,'Rejeitado')">✕</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+
+      @if (carregandoPedidos()) {
+        <p style="padding: 24px 0; color: var(--slate);">Carregando pedidos...</p>
+      } @else if (erroPedidos()) {
+        <p style="padding: 24px 0; color: #d4a017;">{{ erroPedidos() }}</p>
+      } @else {
+
+        <table class="data-table">
+          <thead><tr><th>Nº</th><th>Cliente</th><th>Evento</th><th>Data</th><th>Conv.</th><th>Valor</th><th>Status</th><th>Ações</th></tr></thead>
+          <tbody>
+            <tr *ngFor="let p of pedidosFiltrados">
+              <td>#{{ p.id }}</td>
+              <td><strong>{{ p.nomeContato }}</strong></td>
+              <td>{{ labelTipoEvento(p.tipoEvento) }}</td>
+              <td>{{ formatarData(p.dataEvento) }}</td>
+              <td>{{ p.numeroConvidados }} conv.</td>
+              <td>R$ {{ p.totalEstimado.toLocaleString('pt-BR') }}</td>
+              <td><span class="status-badge" [ngClass]="statusClass(p.status)">{{ labelStatus(p.status) }}</span></td>
+              <td class="actions-cell">
+                <button class="action-btn view" (click)="openModal(p)">👁</button>
+                <button class="action-btn approve" (click)="changeStatus(p,'CONFIRMADO')">✓</button>
+                <button class="action-btn reject" (click)="changeStatus(p,'RECUSADO')">✕</button>
+              </td>
+            </tr>
+            <tr *ngIf="pedidosFiltrados.length === 0">
+              <td colspan="8" style="text-align:center; padding: 24px; color: var(--slate);">Nenhum pedido encontrado.</td>
+            </tr>
+          </tbody>
+        </table>
+
+      }
     </div>
   </div>
 
@@ -243,55 +256,67 @@
   <div class="panel" [class.active]="painelAtivo==='catalogo'">
     <div class="catalog-header-bar">
       <h3 class="card-title" style="margin:0">Catálogo de Produtos & Serviços</h3>
-      <button class="btn-add-product" (click)="showPanel('cadastro')">+ Novo Produto</button>
+      <button class="btn-add-product" (click)="clearForm(); showPanel('cadastro')">+ Novo Produto</button>
     </div>
-    <div class="catalog-filter-bar">
-      <button *ngFor="let f of filtrosCat"
-              class="cat-filter"
-              [class.active]="filtroCatAtivo===f.val"
-              (click)="filtrarCatalog(f.val)">{{ f.label }}</button>
-    </div>
-    <div class="catalog-grid">
-      <div *ngFor="let p of produtosFiltrados" class="catalog-card">
-        <div class="catalog-card-img" [style.backgroundImage]="bgUrl(p.img)"></div>
-        <div class="catalog-card-body">
-          <span class="catalog-card-cat">{{ p.catLabel }}</span>
-          <h4>{{ p.name }}</h4>
-          <p>{{ p.desc }}</p>
-          <div class="catalog-card-footer">
-            <span class="catalog-price">R$ {{ p.price.toLocaleString('pt-BR') }}</span>
-            <span class="req-tag" *ngIf="p.required">🔒 Obrigatório</span>
-          </div>
-          <div class="catalog-card-actions">
-            <button class="cat-edit-btn">✏ Editar</button>
-            <button class="cat-edit-btn" style="color:#EF4444" (click)="deleteProd(p)">✕</button>
+
+    @if (carregandoCatalogo()) {
+      <p style="padding: 40px 0; color: var(--slate);">Carregando catálogo...</p>
+    } @else if (erroCatalogo()) {
+      <p style="padding: 40px 0; color: #d4a017;">{{ erroCatalogo() }}</p>
+    } @else {
+
+      <div class="catalog-filter-bar">
+        <button class="cat-filter" [class.active]="filtroCatAtivo===''" (click)="filtrarCatalog('')">Todos</button>
+        <button *ngFor="let c of categoriasProduto"
+                class="cat-filter"
+                [class.active]="filtroCatAtivo===c.valor"
+                (click)="filtrarCatalog(c.valor)">{{ c.label }}</button>
+      </div>
+
+      @if (produtosFiltrados.length === 0) {
+        <p style="padding: 20px 0; color: var(--slate);">Nenhum produto cadastrado nessa categoria ainda.</p>
+      }
+
+      <div class="catalog-grid">
+        <div *ngFor="let p of produtosFiltrados" class="catalog-card">
+          <div class="catalog-card-img" [style.backgroundImage]="bgUrl(p.imagemUrl || 'https://images.unsplash.com/photo-1555244162-803834f70033?w=400&q=80')"></div>
+          <div class="catalog-card-body">
+            <span class="catalog-card-cat">{{ labelCategoria(p.categoria) }}</span>
+            <h4>{{ p.nome }}</h4>
+            <p>{{ p.descricao }}</p>
+            <div class="catalog-card-footer">
+              <span class="catalog-price">R$ {{ p.valor.toLocaleString('pt-BR') }}</span>
+              <span class="req-tag" *ngIf="p.tipoItem === 'OBRIGATORIO'">🔒 Obrigatório</span>
+            </div>
+            <div class="catalog-card-actions">
+              <button class="cat-edit-btn" (click)="editarProduto(p)">✏ Editar</button>
+              <button class="cat-edit-btn" style="color:#EF4444" (click)="deleteProd(p)">✕</button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+    }
   </div>
 
-  <!-- ======================== CADASTRO ======================== -->
+  <!-- ======================== CADASTRO / EDIÇÃO ======================== -->
   <div class="panel" [class.active]="painelAtivo==='cadastro'">
     <div class="cadastro-layout">
       <div class="card" style="flex:1">
-        <div class="card-header"><h3 class="card-title">Cadastrar Novo Produto / Serviço</h3></div>
+        <div class="card-header">
+          <h3 class="card-title">{{ editando ? 'Editar Produto / Serviço' : 'Cadastrar Novo Produto / Serviço' }}</h3>
+        </div>
         <div class="cadastro-form">
           <div class="form-2col">
             <div class="form-group">
               <label>Nome do Produto</label>
               <input type="text" class="adm-input" placeholder="Ex: Buffet Gourmet Premium"
-                     [(ngModel)]="novoProd.nome" (input)="updatePreview()" />
+                     [(ngModel)]="novoProd.nome" />
             </div>
             <div class="form-group">
               <label>Categoria</label>
-              <select class="adm-input" [(ngModel)]="novoProd.categoria" (change)="updatePreview()">
-                <option value="Buffet">Buffet</option>
-                <option value="Bolo">Bolo / Confeitaria</option>
-                <option value="Decoração">Decoração</option>
-                <option value="Música">Música & Animação</option>
-                <option value="Foto">Fotografia</option>
-                <option value="Outro">Outro</option>
+              <select class="adm-input" [(ngModel)]="novoProd.categoria">
+                <option *ngFor="let c of categoriasProduto" [value]="c.valor">{{ c.label }}</option>
               </select>
             </div>
           </div>
@@ -299,27 +324,66 @@
             <div class="form-group">
               <label>Valor (R$)</label>
               <input type="number" class="adm-input" placeholder="0,00"
-                     [(ngModel)]="novoProd.preco" (input)="updatePreview()" />
+                     [(ngModel)]="novoProd.valor" />
             </div>
             <div class="form-group">
               <label>Tipo de Item</label>
-              <select class="adm-input" [(ngModel)]="novoProd.tipo" (change)="updatePreview()">
-                <option value="obrigatorio">🔒 Obrigatório</option>
-                <option value="opcional">Opcional</option>
+              <select class="adm-input" [(ngModel)]="novoProd.tipoItem">
+                <option value="OBRIGATORIO">🔒 Obrigatório</option>
+                <option value="OPCIONAL">Opcional</option>
               </select>
             </div>
+          </div>
+          <div class="form-2col">
+            <div class="form-group">
+              <label>Unidade de medida (opcional)</label>
+              <input type="text" class="adm-input" placeholder="Ex: un, pacote de 20"
+                     [(ngModel)]="novoProd.unidadeMedida" />
+            </div>
+            <div class="form-group">
+              <label>Quantidade mínima (opcional)</label>
+              <input type="number" class="adm-input" placeholder="Ex: 25"
+                     [(ngModel)]="novoProd.quantidadeMinima" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Imagem do Produto</label>
+            <input type="file" class="adm-input" accept="image/png, image/jpeg, image/webp, image/gif"
+                   (change)="onArquivoSelecionado($event)" />
+            @if (enviandoImagem()) {
+              <span style="display:block; margin-top:6px; font-size:0.8rem; color: var(--slate);">Enviando imagem...</span>
+            }
+            <input type="text" class="adm-input" style="margin-top:8px"
+                   placeholder="ou cole uma URL de imagem (https://...)"
+                   [ngModel]="imagemUrlAtual()" (ngModelChange)="onImagemUrlManual($event)" />
+            @if (erroUpload()) {
+              <p style="color:#d4a017; font-size:0.8rem; margin-top:6px;">{{ erroUpload() }}</p>
+            }
+            @if (imagemUrlAtual()) {
+              <button type="button" class="cat-edit-btn" style="margin-top:8px; color:#EF4444"
+                      (click)="removerImagem()">✕ Remover imagem</button>
+            }
           </div>
           <div class="form-group" style="margin-bottom:16px">
             <label>Descrição</label>
             <textarea class="adm-input" rows="3"
                       placeholder="Descreva o produto/serviço com detalhes..."
-                      [(ngModel)]="novoProd.desc" (input)="updatePreview()"></textarea>
+                      [(ngModel)]="novoProd.descricao"></textarea>
           </div>
+
+          @if (erroSalvarProduto()) {
+            <p style="color:#d4a017; font-size:0.85rem; margin-bottom:12px;">{{ erroSalvarProduto() }}</p>
+          }
+
           <div class="form-actions">
-            <button class="btn-save-product" (click)="saveProduct()">✓ Salvar Produto</button>
-            <button class="btn-clear" (click)="clearForm()">Limpar</button>
+            <button class="btn-save-product" (click)="saveProduct()" [disabled]="salvandoProduto()">
+              {{ salvandoProduto() ? 'Salvando...' : (editando ? '✓ Salvar Alterações' : '✓ Salvar Produto') }}
+            </button>
+            <button class="btn-clear" (click)="clearForm()" [disabled]="salvandoProduto()">
+              {{ editando ? 'Cancelar edição' : 'Limpar' }}
+            </button>
           </div>
-          <div class="success-msg" *ngIf="prodSalvo">✓ Produto salvo com sucesso e adicionado ao catálogo!</div>
+          <div class="success-msg" *ngIf="prodSalvo()">✓ Produto salvo com sucesso e adicionado ao catálogo!</div>
         </div>
       </div>
 
@@ -327,14 +391,14 @@
       <div class="card" style="width:280px;flex-shrink:0;align-self:flex-start">
         <div class="card-header"><h3 class="card-title">Pré-visualização</h3></div>
         <div class="product-preview">
-          <div class="preview-img" style="background-image:url('https://images.unsplash.com/photo-1555244162-803834f70033?w=400&q=80')"></div>
+          <div class="preview-img" [style.backgroundImage]="bgUrl(imagemUrlAtual() || 'https://images.unsplash.com/photo-1555244162-803834f70033?w=400&q=80')"></div>
           <div class="preview-body">
-            <span class="preview-cat">{{ novoProd.categoria || 'Buffet' }}</span>
+            <span class="preview-cat">{{ labelCategoria(novoProd.categoria) }}</span>
             <h4>{{ novoProd.nome || 'Nome do Produto' }}</h4>
-            <p>{{ novoProd.desc || 'Descrição aparecerá aqui...' }}</p>
+            <p>{{ novoProd.descricao || 'Descrição aparecerá aqui...' }}</p>
             <div class="preview-footer">
-              <strong>R$ {{ (novoProd.preco || 0).toLocaleString('pt-BR') }}</strong>
-              <span class="req-badge">{{ novoProd.tipo === 'obrigatorio' ? '🔒 Obrigatório' : 'Opcional' }}</span>
+              <strong>R$ {{ (novoProd.valor || 0).toLocaleString('pt-BR') }}</strong>
+              <span class="req-badge">{{ novoProd.tipoItem === 'OBRIGATORIO' ? '🔒 Obrigatório' : 'Opcional' }}</span>
             </div>
           </div>
         </div>
@@ -386,22 +450,22 @@
 <div class="modal-overlay" [class.open]="modalAberto" (click)="fecharModal()">
   <div class="modal-box" (click)="$event.stopPropagation()" *ngIf="pedidoModal">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
-      <h3 style="font-family:var(--font-display);font-size:1.4rem;font-weight:300">Pedido #{{ pedidoModal.num }}</h3>
+      <h3 style="font-family:var(--font-display);font-size:1.4rem;font-weight:300">Pedido #{{ pedidoModal.id }}</h3>
       <button (click)="fecharModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--slate)">✕</button>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
-      <div><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">Cliente</label><strong>{{ pedidoModal.client }}</strong></div>
-      <div><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">Evento</label>{{ pedidoModal.event }}</div>
-      <div><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">Data</label>{{ pedidoModal.date }}</div>
-      <div><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">Convidados</label>{{ pedidoModal.guests }} pessoas</div>
+      <div><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">Cliente</label><strong>{{ pedidoModal.nomeContato }}</strong></div>
+      <div><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">Evento</label>{{ labelTipoEvento(pedidoModal.tipoEvento) }}</div>
+      <div><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">Data</label>{{ formatarData(pedidoModal.dataEvento) }}</div>
+      <div><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">Convidados</label>{{ pedidoModal.numeroConvidados }} pessoas</div>
     </div>
     <div style="background:var(--off-white);padding:16px;border-radius:6px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
       <span style="font-size:.85rem;color:var(--slate)">Valor estimado</span>
-      <strong style="font-family:var(--font-display);font-size:1.4rem">R$ {{ pedidoModal.value.toLocaleString('pt-BR') }}</strong>
+      <strong style="font-family:var(--font-display);font-size:1.4rem">R$ {{ pedidoModal.totalEstimado.toLocaleString('pt-BR') }}</strong>
     </div>
     <div style="display:flex;gap:10px">
       <button (click)="fecharModal()" style="flex:1;padding:12px;border:1px solid var(--silver);border-radius:4px;background:none;cursor:pointer;font-family:var(--font-body);font-size:.82rem">Fechar</button>
-      <button (click)="changeStatus(pedidoModal,'Confirmado');fecharModal()" style="flex:1;padding:12px;background:#D1FAE5;color:#065F46;border:none;border-radius:4px;cursor:pointer;font-family:var(--font-body);font-size:.82rem;font-weight:500">✓ Confirmar</button>
+      <button (click)="changeStatus(pedidoModal,'CONFIRMADO');fecharModal()" style="flex:1;padding:12px;background:#D1FAE5;color:#065F46;border:none;border-radius:4px;cursor:pointer;font-family:var(--font-body);font-size:.82rem;font-weight:500">✓ Confirmar</button>
     </div>
   </div>
 </div>

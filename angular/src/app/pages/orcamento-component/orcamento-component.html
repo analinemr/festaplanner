@@ -15,10 +15,10 @@
 
 <section class="orcamento-page">
 
-  @if (carregandoCatalogo) {
+  @if (carregandoCatalogo()) {
     <p style="padding: 100px 48px;">Carregando catálogo...</p>
-  } @else if (erroCatalogo) {
-    <p style="padding: 100px 48px; color: #d4a017;">{{ erroCatalogo }}</p>
+  } @else if (erroCatalogo()) {
+    <p style="padding: 100px 48px; color: #d4a017;">{{ erroCatalogo() }}</p>
   } @else {
 
   <div class="app-layout">
@@ -116,7 +116,7 @@
             <div class="service-carousel-viewport" id="temas-carousel">
               <div class="service-carousel-track">
                 @for (tema of temasFiltrados; track tema.id) {
-                  <article class="service-item theme-item" [class.selected]="tema.id === temaSelecionadoId" (click)="selecionarTema(tema)">
+                  <article class="service-item theme-item" [class.selected]="tema.id === temaSelecionadoId()" (click)="selecionarTema(tema)">
                     <div class="service-img">
                       <img [src]="tema.imagemUrl" [alt]="tema.nome">
                     </div>

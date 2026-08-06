@@ -52,11 +52,13 @@ export class OrcamentoComponent implements OnInit {
   rascunhoSalvo = false;
 
   // ---- Catálogo real vindo do backend ----
-  produtos: ApiProduto[] = [];
-  temas: ApiTema[] = [];
-  temaSelecionadoId: number | null = null;
-  carregandoCatalogo = false;
-  erroCatalogo = '';
+  // Também convertidos para signal(): são atribuídos dentro de métodos async
+  // (carregarProdutos/carregarTemas) e precisam notificar a view corretamente.
+  produtos = signal<ApiProduto[]>([]);
+  temas = signal<ApiTema[]>([]);
+  temaSelecionadoId = signal<number | null>(null);
+  carregandoCatalogo = signal(false);
+  erroCatalogo = signal('');
 
   // ---- Estado de seleção (chaves = ID real do produto no banco) ----
   selecionados: Record<number, boolean> = {};
@@ -151,30 +153,30 @@ export class OrcamentoComponent implements OnInit {
   // ==================== CARREGAMENTO DO CATÁLOGO ====================
 
   private async carregarProdutos(): Promise<void> {
-    this.carregandoCatalogo = true;
-    this.erroCatalogo = '';
+    this.carregandoCatalogo.set(true);
+    this.erroCatalogo.set('');
     try {
-      this.produtos = await firstValueFrom(this.catalogoApi.buscarTodosProdutos());
+      this.produtos.set(await firstValueFrom(this.catalogoApi.buscarTodosProdutos()));
       this.inicializarSelecaoObrigatorios();
     } catch {
-      this.erroCatalogo = 'Não foi possível carregar o catálogo de produtos. Recarregue a página.';
+      this.erroCatalogo.set('Não foi possível carregar o catálogo de produtos. Recarregue a página.');
     } finally {
-      this.carregandoCatalogo = false;
+      this.carregandoCatalogo.set(false);
     }
   }
 
   private async carregarTemas(): Promise<void> {
     const tipoEnum = this.mapTipoEventoToEnum(this.tipoEvento);
     try {
-      this.temas = await firstValueFrom(this.catalogoApi.buscarTemas(tipoEnum));
+      this.temas.set(await firstValueFrom(this.catalogoApi.buscarTemas(tipoEnum)));
     } catch {
-      this.temas = [];
+      this.temas.set([]);
     }
-    this.temaSelecionadoId = null;
+    this.temaSelecionadoId.set(null);
   }
 
   private inicializarSelecaoObrigatorios(): void {
-    for (const produto of this.produtos) {
+    for (const produto of this.produtos()) {
       if (produto.tipoItem === 'OBRIGATORIO') {
         this.selecionados[produto.id] = true;
       }
@@ -235,17 +237,17 @@ export class OrcamentoComponent implements OnInit {
 
   get temasFiltrados(): ApiTema[] {
     if (this.ehEventoInfantil && this.temaInfantilFiltroAtual !== 'todos') {
-      return this.temas.filter(t => t.genero === this.temaInfantilFiltroAtual);
+      return this.temas().filter(t => t.genero === this.temaInfantilFiltroAtual);
     }
-    return this.temas;
+    return this.temas();
   }
 
   get temaSelecionado(): ApiTema | undefined {
-    return this.temas.find(t => t.id === this.temaSelecionadoId);
+    return this.temas().find(t => t.id === this.temaSelecionadoId());
   }
 
   selecionarTema(tema: ApiTema): void {
-    this.temaSelecionadoId = tema.id;
+    this.temaSelecionadoId.set(tema.id);
   }
 
   selecionarFiltroTemaInfantil(filtro: TemaInfantilFiltro): void {
@@ -253,13 +255,13 @@ export class OrcamentoComponent implements OnInit {
   }
 
   removerTema(): void {
-    this.temaSelecionadoId = null;
+    this.temaSelecionadoId.set(null);
   }
 
   // ==================== HELPERS GENÉRICOS DE PRODUTO ====================
 
   produtosPorCategoria(categoria: string): ApiProduto[] {
-    return this.produtos.filter(p => p.categoria === categoria && p.ativo !== false);
+    return this.produtos().filter(p => p.categoria === categoria && p.ativo !== false);
   }
 
   produtoSelecionado(produtoId: number): boolean {
@@ -307,7 +309,7 @@ export class OrcamentoComponent implements OnInit {
   // ==================== SERVIÇOS (Buffet + Bolo) ====================
 
   get servicos(): ApiProduto[] {
-    return this.produtos.filter(p => (p.categoria === 'BUFFET' || p.categoria === 'BOLO') && p.ativo !== false);
+    return this.produtos().filter(p => (p.categoria === 'BUFFET' || p.categoria === 'BOLO') && p.ativo !== false);
   }
 
   get servicosSelecionados(): ApiProduto[] {
@@ -548,8 +550,9 @@ export class OrcamentoComponent implements OnInit {
       const orcamentoCriado = await firstValueFrom(this.orcamentoApi.iniciar(eventoRequest));
       const orcamentoId = orcamentoCriado.id;
 
-      if (this.temaSelecionadoId) {
-        await firstValueFrom(this.orcamentoApi.definirTema(orcamentoId, this.temaSelecionadoId));
+      const temaId = this.temaSelecionadoId();
+      if (temaId) {
+        await firstValueFrom(this.orcamentoApi.definirTema(orcamentoId, temaId));
       }
 
       for (const item of this.montarItensParaEnvio()) {

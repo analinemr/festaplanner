@@ -1,20 +1,29 @@
 import {
   Component, OnInit, AfterViewInit,
-  ViewChild, ElementRef, ViewEncapsulation
+  ViewChild, ElementRef, ViewEncapsulation, signal
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/services/auth-service';
+import { CatalogoApiService, ApiProduto, ProdutoRequest } from '../../core/services/catalogo-api.service';
+import { OrcamentoApiService, ApiOrcamento } from '../../core/services/orcamento-api.service';
 
-interface Pedido {
-  num: string; client: string; event: string; date: string;
-  guests: number; value: number; status: string;
-}
-
-interface Produto {
-  name: string; cat: string; catLabel: string;
-  desc: string; price: number; required: boolean; img: string;
+/**
+ * Formulário de cadastro/edição — espelha ProdutoRequest, com `id` extra para saber se é edição.
+ * A imagem NÃO fica aqui: fica em `imagemUrlAtual` (signal), porque é alterada dentro de
+ * upload assíncrono e precisa notificar a view corretamente no modo zoneless.
+ */
+interface ProdutoFormState {
+  id: number | null;
+  nome: string;
+  categoria: string;
+  tipoItem: 'OBRIGATORIO' | 'OPCIONAL';
+  valor: number;
+  unidadeMedida: string;
+  quantidadeMinima: number | null;
+  descricao: string;
 }
 
 @Component({
@@ -39,30 +48,167 @@ export class AdminComponent implements OnInit, AfterViewInit {
 
   bgUrl(url: string): string { return `url('${url}')`; }
 
-  // ---- KPIs ----
-  kpis = [
-    { cor:'green',  valor:'12',        label:'Novos Pedidos' },
-    { cor:'yellow', valor:'5',         label:'Em Negociação' },
-    { cor:'blue',   valor:'R$ 94.800', label:'Receita do Mês' },
-    { cor:'silver', valor:'8',         label:'Eventos Confirmados' }
-  ];
+  // ==================== PEDIDOS (real, conectado ao backend) ====================
 
-  // ---- PEDIDOS ----
-  allOrders: Pedido[] = [
-    { num:'12345', client:'Aniversário Lucca',  event:'Infantil',  date:'15/10/2026', guests:100, value:4500,  status:'Pendente' },
-    { num:'12346', client:'Casamento Carla',    event:'Casamento', date:'01/12/2026', guests:250, value:12000, status:'Pré-Reserva' },
-    { num:'12347', client:'Carndo Silver',      event:'Temático',  date:'20/11/2026', guests:80,  value:6800,  status:'Novo' },
-    { num:'12348', client:'Debutante Sofia',    event:'15 Anos',   date:'05/11/2026', guests:120, value:8200,  status:'Confirmado' },
-    { num:'12349', client:'Rebeca & Paulo',     event:'Casamento', date:'10/01/2027', guests:180, value:15400, status:'Novo' },
-    { num:'12350', client:'Aniversário Theo',   event:'Infantil',  date:'22/10/2026', guests:60,  value:3200,  status:'Confirmado' }
-  ];
-  pedidosFiltrados: Pedido[] = [];
-  get pedidosRecentes(): Pedido[] { return this.allOrders.slice(0, 3); }
-  get totalNovos(): number { return this.allOrders.filter(p => p.status === 'Novo' || p.status === 'Pendente').length; }
+  /**
+   * Convertidos para signal() pelo mesmo motivo do Catálogo: são alterados
+   * dentro de chamadas assíncronas (HTTP) e precisam notificar a view no modo zoneless.
+   */
+  pedidos = signal<ApiOrcamento[]>([]);
+  carregandoPedidos = signal(false);
+  erroPedidos = signal('');
+
+  /** Filtro de status ativo na tela de Pedidos. '' = todos (exceto rascunho). */
+  filtroStatusAtivo = '';
+
+  /** Rótulo em pt-BR de cada status do backend (StatusOrcamento). */
+  readonly statusLabel: Record<string, string> = {
+    RASCUNHO: 'Rascunho',
+    NOVO: 'Novo',
+    PENDENTE: 'Pendente',
+    PRE_RESERVA: 'Pré-Reserva',
+    CONFIRMADO: 'Confirmado',
+    RECUSADO: 'Rejeitado'
+  };
+
+  /** Classe CSS (já existente no template) para cada status. */
+  readonly statusCssClass: Record<string, string> = {
+    RASCUNHO: 'pending',
+    NOVO: 'new',
+    PENDENTE: 'pending',
+    PRE_RESERVA: 'prereserva',
+    CONFIRMADO: 'confirmed',
+    RECUSADO: 'rejected'
+  };
+
+  /** Rótulo em pt-BR de cada tipo de evento (TipoEvento). */
+  readonly tipoEventoLabel: Record<string, string> = {
+    CASAMENTO: 'Casamento',
+    QUINZE_ANOS: '15 Anos',
+    INFANTIL: 'Infantil',
+    FLORAL: 'Floral',
+    TEMATICO: 'Temático',
+    CORPORATIVO: 'Corporativo'
+  };
+
+  /** Cor de cada tipo de evento no gráfico donut do Painel. */
+  readonly tipoEventoCor: Record<string, string> = {
+    CASAMENTO: '#2D2D2D',
+    QUINZE_ANOS: '#C9A96E',
+    INFANTIL: '#9CA3AF',
+    TEMATICO: '#E5E7EB',
+    FLORAL: '#F59E0B',
+    CORPORATIVO: '#6B7280'
+  };
+
+  labelStatus(status: string): string {
+    return this.statusLabel[status] ?? status;
+  }
+
+  labelTipoEvento(tipo: string): string {
+    return this.tipoEventoLabel[tipo] ?? tipo;
+  }
+
+  /** Converte 'YYYY-MM-DD' (formato do backend) para 'DD/MM/YYYY'. */
+  formatarData(iso?: string): string {
+    if (!iso) return '—';
+    const [ano, mes, dia] = iso.split('-');
+    return `${dia}/${mes}/${ano}`;
+  }
+
+  private formatarMoedaResumida(valor: number): string {
+    return 'R$ ' + Math.round(valor).toLocaleString('pt-BR');
+  }
+
+  // ==================== PAINEL — KPIs e gráficos (calculados a partir de pedidos()) ====================
+
+  /** Os 4 cards do topo do Painel, calculados em cima dos pedidos já carregados. */
+  get kpis(): { cor: string; valor: string; label: string }[] {
+    const todos = this.pedidos();
+    const novos = todos.filter(p => p.status === 'NOVO').length;
+    const emNegociacao = todos.filter(p => p.status === 'PENDENTE' || p.status === 'PRE_RESERVA').length;
+    const confirmados = todos.filter(p => p.status === 'CONFIRMADO');
+
+    const hoje = new Date();
+    const receitaMes = confirmados
+      .filter(p => {
+        if (!p.dataEvento) return false;
+        const [ano, mes] = p.dataEvento.split('-').map(Number);
+        return ano === hoje.getFullYear() && mes === hoje.getMonth() + 1;
+      })
+      .reduce((soma, p) => soma + p.totalEstimado, 0);
+
+    return [
+      { cor: 'green',  valor: String(novos),                        label: 'Novos Pedidos' },
+      { cor: 'yellow', valor: String(emNegociacao),                  label: 'Em Negociação' },
+      { cor: 'blue',   valor: this.formatarMoedaResumida(receitaMes), label: 'Receita do Mês' },
+      { cor: 'silver', valor: String(confirmados.length),            label: 'Eventos Confirmados' }
+    ];
+  }
+
+  /** Receita mensal (eventos CONFIRMADOS no ano corrente), para o gráfico de barras. */
+  get chartData(): { m: string; v: number; pct: number }[] {
+    const mesesAbrev = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const valoresPorMes = new Array(12).fill(0);
+
+    for (const p of this.pedidos()) {
+      if (p.status !== 'CONFIRMADO' || !p.dataEvento) continue;
+      const [ano, mes] = p.dataEvento.split('-').map(Number);
+      if (ano !== this.anoAtual) continue;
+      valoresPorMes[mes - 1] += p.totalEstimado;
+    }
+
+    const max = Math.max(...valoresPorMes, 1);
+    return mesesAbrev.map((m, i) => ({
+      m,
+      v: valoresPorMes[i],
+      pct: valoresPorMes[i] ? (valoresPorMes[i] / max) * 100 : 2
+    }));
+  }
+
+  /** Distribuição percentual por tipo de evento (exclui rascunho/recusado), para o donut. */
+  get donutData(): { label: string; val: number; color: string }[] {
+    const relevantes = this.pedidos().filter(p => p.status !== 'RECUSADO');
+    const total = relevantes.length;
+    if (total === 0) return [];
+
+    const contagem: Record<string, number> = {};
+    for (const p of relevantes) {
+      contagem[p.tipoEvento] = (contagem[p.tipoEvento] ?? 0) + 1;
+    }
+
+    return Object.entries(contagem).map(([tipo, qtd]) => ({
+      label: this.labelTipoEvento(tipo),
+      val: Math.round((qtd / total) * 100),
+      color: this.tipoEventoCor[tipo] ?? '#9CA3AF'
+    }));
+  }
+
+  /** Lista já filtrada — getter reativo sobre o signal pedidos(). */
+  get pedidosFiltrados(): ApiOrcamento[] {
+    let resultado = this.pedidos();
+
+    if (this.filtroStatusAtivo) {
+      resultado = resultado.filter(p => p.status === this.filtroStatusAtivo);
+    }
+
+    const termo = this.termoBusca.trim().toLowerCase();
+    if (termo) {
+      resultado = resultado.filter(p =>
+        (p.nomeContato ?? '').toLowerCase().includes(termo) ||
+        this.labelTipoEvento(p.tipoEvento).toLowerCase().includes(termo)
+      );
+    }
+
+    return resultado;
+  }
+
+  get pedidosRecentes(): ApiOrcamento[] { return this.pedidos().slice(0, 3); }
+  get totalNovos(): number { return this.pedidos().filter(p => p.status === 'NOVO' || p.status === 'PENDENTE').length; }
 
   // ---- MODAL ----
   modalAberto = false;
-  pedidoModal: Pedido | null = null;
+  pedidoModal: ApiOrcamento | null = null;
 
   // ---- CALENDÁRIO ----
   diasSemana = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
@@ -71,31 +217,45 @@ export class AdminComponent implements OnInit, AfterViewInit {
 
   get mesLabel(): string { return `${this.meses[this.calMonth]} ${this.calYear}`; }
 
-  private EVENTS: Record<number,string> = {
-    2:'confirmed', 3:'confirmed', 8:'prereserva',
-    10:'prereserva', 12:'confirmed', 22:'confirmed', 23:'confirmed', 26:'prereserva'
-  };
+  /** Mapeia dia -> classe CSS ('confirmed'/'prereserva') a partir dos pedidos reais daquele mês/ano. */
+  private eventosPorDia(ano: number, mesIndex: number): Record<number, string> {
+    const mapa: Record<number, string> = {};
+    for (const p of this.pedidos()) {
+      if (!p.dataEvento) continue;
+      if (p.status !== 'CONFIRMADO' && p.status !== 'PRE_RESERVA') continue;
+      const [anoP, mesP, diaP] = p.dataEvento.split('-').map(Number);
+      if (anoP === ano && mesP === mesIndex + 1) {
+        mapa[diaP] = p.status === 'CONFIRMADO' ? 'confirmed' : 'prereserva';
+      }
+    }
+    return mapa;
+  }
 
   cellsMini:   { num: string; cls: string }[] = [];
   cellsGrande: { num: string; cls: string; evento?: string }[] = [];
 
-  proximosEventos = [
-    { day:'02', mon:'OUT', name:'Casamento Renata & Carlos', info:'Casamento · 200 conv.', cls:'confirmed' },
-    { day:'08', mon:'OUT', name:'Aniversário Lucca',         info:'Infantil · 100 conv.',  cls:'prereserva' },
-    { day:'12', mon:'OUT', name:'Casamento Carla',           info:'Casamento · 250 conv.', cls:'confirmed' },
-    { day:'22', mon:'OUT', name:'Debutante Sofia',           info:'15 Anos · 120 conv.',   cls:'confirmed' }
-  ];
+  /** Próximos eventos confirmados/pré-reservados a partir de hoje, calculado sobre pedidos(). */
+  get proximosEventos(): { day: string; mon: string; name: string; info: string; cls: string }[] {
+    const mesesAbrev = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+    const hojeIso = new Date().toISOString().slice(0, 10);
 
-  // ---- GRÁFICOS ----
-  chartData: { m: string; v: number; pct: number }[] = [];
+    return this.pedidos()
+      .filter(p => (p.status === 'CONFIRMADO' || p.status === 'PRE_RESERVA') && p.dataEvento && p.dataEvento >= hojeIso)
+      .sort((a, b) => (a.dataEvento ?? '').localeCompare(b.dataEvento ?? ''))
+      .slice(0, 6)
+      .map(p => {
+        const [, mes, dia] = (p.dataEvento ?? '').split('-').map(Number);
+        return {
+          day: String(dia).padStart(2, '0'),
+          mon: mesesAbrev[mes - 1],
+          name: p.nomeContato ?? this.labelTipoEvento(p.tipoEvento),
+          info: `${this.labelTipoEvento(p.tipoEvento)} · ${p.numeroConvidados} conv.`,
+          cls: p.status === 'CONFIRMADO' ? 'confirmed' : 'prereserva'
+        };
+      });
+  }
 
-  donutData = [
-    { label:'Casamento', val:35, color:'#2D2D2D' },
-    { label:'15 Anos',   val:28, color:'#C9A96E' },
-    { label:'Infantil',  val:22, color:'#9CA3AF' },
-    { label:'Temático',  val:15, color:'#E5E7EB' }
-  ];
-
+  // ---- RELATÓRIOS (ainda mock — próxima etapa do backend) ----
   barReport = [
     { label:'Casamento', val:'R$ 99k', pct:100, color:'#2D2D2D' },
     { label:'15 Anos',   val:'R$ 79k', pct:80,  color:'#C9A96E' },
@@ -103,28 +263,81 @@ export class AdminComponent implements OnInit, AfterViewInit {
     { label:'Temático',  val:'R$ 42k', pct:43,  color:'#E5E7EB' }
   ];
 
-  // ---- CATÁLOGO ----
-  filtrosCat = [
-    { val:'all', label:'Todos' }, { val:'buffet', label:'Buffet' },
-    { val:'bolo', label:'Bolo' }, { val:'decor', label:'Decoração' }, { val:'musica', label:'Música' }
+  // ==================== CATÁLOGO (real, conectado ao backend) ====================
+
+  /**
+   * Convertidos para signal() porque o app roda em modo zoneless (Angular 21):
+   * são alterados dentro de chamadas assíncronas (HTTP, setTimeout), que não
+   * disparam re-renderização automática se forem propriedades comuns.
+   */
+  produtosCatalogo = signal<ApiProduto[]>([]);
+  carregandoCatalogo = signal(false);
+  erroCatalogo = signal('');
+
+  salvandoProduto = signal(false);
+  erroSalvarProduto = signal('');
+  prodSalvo = signal(false);
+
+  /** Imagem atual do formulário (upload em andamento, já enviada, ou URL colada manualmente). */
+  imagemUrlAtual = signal('');
+  enviandoImagem = signal(false);
+  erroUpload = signal('');
+
+  /** Categorias reais do backend (enum CategoriaProduto), com rótulo em pt-BR para exibição. */
+  readonly categoriasProduto: { valor: string; label: string }[] = [
+    { valor: 'BUFFET',     label: 'Buffet' },
+    { valor: 'BOLO',       label: 'Bolo / Confeitaria' },
+    { valor: 'DOCES',      label: 'Doces' },
+    { valor: 'SALGADOS',   label: 'Salgados' },
+    { valor: 'BEBIDAS',    label: 'Bebidas' },
+    { valor: 'DECORACAO',  label: 'Decoração' },
+    { valor: 'MUSICA',     label: 'Música' },
+    { valor: 'ANIMACAO',   label: 'Animação' },
+    { valor: 'FOTOGRAFIA', label: 'Fotografia' },
+    { valor: 'MOBILIARIO', label: 'Mobiliário' }
   ];
-  filtroCatAtivo = 'all';
 
-  allProducts: Produto[] = [
-    { name:'Buffet Básico',    cat:'buffet', catLabel:'Buffet',     desc:'Salgados, frios e pratos quentes', price:2500, required:true,  img:'https://images.unsplash.com/photo-1555244162-803834f70033?w=400&q=80' },
-    { name:'Buffet Premium',   cat:'buffet', catLabel:'Buffet',     desc:'Gourmet com estações ao vivo',     price:4200, required:false, img:'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400&q=80' },
-    { name:'Bolo 3 Andares',   cat:'bolo',   catLabel:'Bolo',       desc:'Pasta americana.',                 price:1200, required:false, img:'https://images.unsplash.com/photo-1535141192574-5d4897c12636?w=400&q=80' },
-    { name:'Mesa de Doces',    cat:'bolo',   catLabel:'Bolo',       desc:'Brigadeiros, trufas e bem-casados',price:680,  required:false, img:'https://images.unsplash.com/photo-1563729784474-d77dbb933a9e?w=400&q=80' },
-    { name:'Decoração Floral', cat:'decor',  catLabel:'Decoração',  desc:'Arranjos completos.',               price:4800, required:true,  img:'https://images.unsplash.com/photo-1490750967868-88df5691cc3b?w=400&q=80' },
-    { name:'DJ Profissional',  cat:'musica', catLabel:'Música',     desc:'6 horas de música.',               price:800,  required:false, img:'https://images.unsplash.com/photo-1571266752461-eff34b1f01cd?w=400&q=80' }
-  ];
-  produtosFiltrados: Produto[] = [];
+  /** Filtro ativo na grade do catálogo. '' = Todos. */
+  filtroCatAtivo = '';
 
-  // ---- CADASTRO ----
-  novoProd = { nome:'', categoria:'Buffet', preco:0, tipo:'opcional', desc:'' };
-  prodSalvo = false;
+  /** Lista já filtrada pela categoria ativa — getter reativo sobre o signal produtosCatalogo. */
+  get produtosFiltrados(): ApiProduto[] {
+    return this.filtroCatAtivo
+      ? this.produtosCatalogo().filter(p => p.categoria === this.filtroCatAtivo)
+      : this.produtosCatalogo();
+  }
 
-  constructor(private authService: AuthService, private router: Router) {}
+  /** Rótulo em pt-BR de uma categoria, para exibir nos cards. */
+  labelCategoria(categoria: string): string {
+    return this.categoriasProduto.find(c => c.valor === categoria)?.label ?? categoria;
+  }
+
+  // ---- CADASTRO / EDIÇÃO ----
+  novoProd: ProdutoFormState = this.formVazio();
+
+  private formVazio(): ProdutoFormState {
+    return {
+      id: null,
+      nome: '',
+      categoria: 'BUFFET',
+      tipoItem: 'OPCIONAL',
+      valor: 0,
+      unidadeMedida: '',
+      quantidadeMinima: null,
+      descricao: ''
+    };
+  }
+
+  get editando(): boolean {
+    return this.novoProd.id !== null;
+  }
+
+  constructor(
+    private authService: AuthService,
+    private router: Router,
+    private catalogoApi: CatalogoApiService,
+    private orcamentoApi: OrcamentoApiService
+  ) {}
 
   ngOnInit(): void {
     // Data
@@ -135,11 +348,12 @@ export class AdminComponent implements OnInit, AfterViewInit {
     const u = this.authService.getUsuario();
     if (u?.nome) { this.nomeUsuario = u.nome; this.inicialUsuario = u.nome[0].toUpperCase(); }
 
-    // Init dados
-    this.pedidosFiltrados = [...this.allOrders];
-    this.produtosFiltrados = [...this.allProducts];
+    // Init dados mock (Agenda/Gráficos — próximas etapas do backend)
     this.gerarCalendario();
-    this.gerarGrafico();
+
+    // Dados reais
+    this.carregarCatalogo();
+    this.carregarPedidos();
   }
 
   ngAfterViewInit(): void {
@@ -159,30 +373,44 @@ export class AdminComponent implements OnInit, AfterViewInit {
     if (id === 'agenda')    this.gerarCalendarioGrande();
   }
 
-  // ---- PEDIDOS ----
-  statusClass(s: string): string {
-    const m: Record<string,string> = {
-      'Novo':'new', 'Pendente':'pending', 'Pré-Reserva':'prereserva',
-      'Confirmado':'confirmed', 'Rejeitado':'rejected'
-    };
-    return m[s] || 'pending';
+  // ==================== PEDIDOS — CRUD REAL ====================
+
+  async carregarPedidos(): Promise<void> {
+    this.carregandoPedidos.set(true);
+    this.erroPedidos.set('');
+    try {
+      const pedidos = await firstValueFrom(this.orcamentoApi.listarParaAdmin());
+      this.pedidos.set(pedidos);
+    } catch {
+      this.erroPedidos.set('Não foi possível carregar os pedidos agora. Tente recarregar a página.');
+    } finally {
+      this.carregandoPedidos.set(false);
+    }
   }
 
-  changeStatus(p: Pedido, status: string): void { p.status = status; }
+  statusClass(status: string): string {
+    return this.statusCssClass[status] ?? 'pending';
+  }
+
+  /** Ações ✓ (aprovar/confirmar) e ✕ (recusar) nos botões da tabela e do modal. */
+  async changeStatus(p: ApiOrcamento, novoStatus: string): Promise<void> {
+    try {
+      const atualizado = await firstValueFrom(this.orcamentoApi.atualizarStatusAdmin(p.id, novoStatus));
+      this.pedidos.set(this.pedidos().map(x => x.id === atualizado.id ? atualizado : x));
+    } catch {
+      window.alert('Não foi possível atualizar o status do pedido agora. Tente novamente.');
+    }
+  }
 
   filtrarPorStatus(e: Event): void {
-    const v = (e.target as HTMLSelectElement).value;
-    this.pedidosFiltrados = v ? this.allOrders.filter(p => p.status === v) : [...this.allOrders];
+    this.filtroStatusAtivo = (e.target as HTMLSelectElement).value;
   }
 
-  filtrarPedidos(): void {
-    const q = this.termoBusca.toLowerCase();
-    this.pedidosFiltrados = q
-      ? this.allOrders.filter(p => p.client.toLowerCase().includes(q) || p.event.toLowerCase().includes(q))
-      : [...this.allOrders];
-  }
+  /** A filtragem é reativa via o getter `pedidosFiltrados` — este método existe só para
+   *  o binding (input) do template, o próprio termoBusca já dispara a reavaliação. */
+  filtrarPedidos(): void {}
 
-  openModal(p: Pedido): void { this.pedidoModal = p; this.modalAberto = true; }
+  openModal(p: ApiOrcamento): void { this.pedidoModal = p; this.modalAberto = true; }
   fecharModal(): void { this.modalAberto = false; this.pedidoModal = null; }
 
   // ---- CALENDÁRIO ----
@@ -190,11 +418,12 @@ export class AdminComponent implements OnInit, AfterViewInit {
     const today = new Date();
     const first = new Date(this.calYear, this.calMonth, 1).getDay();
     const total = new Date(this.calYear, this.calMonth + 1, 0).getDate();
+    const eventos = this.eventosPorDia(this.calYear, this.calMonth);
     this.cellsMini = [];
     for (let i = 0; i < first; i++) this.cellsMini.push({ num:'', cls:'empty' });
     for (let d = 1; d <= total; d++) {
       const isToday = d === today.getDate() && this.calMonth === today.getMonth() && this.calYear === today.getFullYear();
-      const evCls = this.EVENTS[d] || '';
+      const evCls = eventos[d] || '';
       this.cellsMini.push({ num: String(d), cls: [evCls, isToday ? 'today' : ''].join(' ').trim() });
     }
   }
@@ -202,10 +431,11 @@ export class AdminComponent implements OnInit, AfterViewInit {
   gerarCalendarioGrande(): void {
     const today = new Date();
     const first = new Date(2026, 9, 1).getDay();
+    const eventos = this.eventosPorDia(2026, 9);
     this.cellsGrande = [];
     for (let i = 0; i < first; i++) this.cellsGrande.push({ num:'', cls:'empty' });
     for (let d = 1; d <= 31; d++) {
-      const evCls = this.EVENTS[d] || '';
+      const evCls = eventos[d] || '';
       const isToday = d === today.getDate() && today.getMonth() === 9 && today.getFullYear() === 2026 ? 'today' : '';
       const evento = evCls === 'confirmed' ? '● Confirmado' : evCls === 'prereserva' ? '● Pré-Reserva' : undefined;
       this.cellsGrande.push({ num: String(d), cls: [evCls, isToday].join(' ').trim(), evento });
@@ -217,14 +447,6 @@ export class AdminComponent implements OnInit, AfterViewInit {
     if (this.calMonth > 11) { this.calMonth = 0; this.calYear++; }
     if (this.calMonth < 0)  { this.calMonth = 11; this.calYear--; }
     this.gerarCalendario();
-  }
-
-  // ---- GRÁFICO DE BARRAS ----
-  gerarGrafico(): void {
-    const dados = [9200,11400,8700,14200,12800,15600,13900,16200,11700,15800,0,0];
-    const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    const max = Math.max(...dados);
-    this.chartData = dados.map((v, i) => ({ m: meses[i], v, pct: v ? v / max * 100 : 2 }));
   }
 
   // ---- DONUT ----
@@ -245,53 +467,166 @@ export class AdminComponent implements OnInit, AfterViewInit {
     });
     ctx.beginPath(); ctx.arc(cx, cy, ir, 0, 2 * Math.PI);
     ctx.fillStyle = '#fff'; ctx.fill();
+
+    const totalEventos = this.pedidos().filter(p => p.status !== 'RECUSADO').length;
     ctx.fillStyle = '#2D2D2D'; ctx.font = 'bold 18px DM Sans';
-    ctx.textAlign = 'center'; ctx.fillText('47', cx, cy + 4);
+    ctx.textAlign = 'center'; ctx.fillText(String(totalEventos), cx, cy + 4);
     ctx.font = '10px DM Sans'; ctx.fillStyle = '#6B7280';
     ctx.fillText('eventos', cx, cy + 18);
   }
 
-  // ---- CATÁLOGO ----
+  // ==================== CATÁLOGO — CRUD REAL ====================
+
+  async carregarCatalogo(): Promise<void> {
+    this.carregandoCatalogo.set(true);
+    this.erroCatalogo.set('');
+    try {
+      const produtos = await firstValueFrom(this.catalogoApi.buscarTodosProdutos());
+      this.produtosCatalogo.set(produtos);
+    } catch {
+      this.erroCatalogo.set('Não foi possível carregar o catálogo. Tente recarregar a página.');
+    } finally {
+      this.carregandoCatalogo.set(false);
+    }
+  }
+
   filtrarCatalog(val: string): void {
     this.filtroCatAtivo = val;
-    this.produtosFiltrados = val === 'all' ? [...this.allProducts] : this.allProducts.filter(p => p.cat === val);
   }
 
-  deleteProd(p: Produto): void {
-    this.allProducts = this.allProducts.filter(x => x !== p);
-    this.filtrarCatalog(this.filtroCatAtivo);
+  /** Abre o formulário de cadastro já preenchido para editar um produto existente. */
+  editarProduto(p: ApiProduto): void {
+    this.novoProd = {
+      id: p.id,
+      nome: p.nome,
+      categoria: p.categoria,
+      tipoItem: p.tipoItem,
+      valor: p.valor,
+      unidadeMedida: p.unidadeMedida ?? '',
+      quantidadeMinima: p.quantidadeMinima ?? null,
+      descricao: p.descricao ?? ''
+    };
+    this.imagemUrlAtual.set(this.catalogoApi.resolverUrlImagem(p.imagemUrl) || p.imagemUrl || '');
+    this.erroSalvarProduto.set('');
+    this.erroUpload.set('');
+    this.showPanel('cadastro');
   }
 
-  // ---- CADASTRO ----
-  updatePreview(): void { /* reactive via ngModel */ }
+  async deleteProd(p: ApiProduto): Promise<void> {
+    const confirmar = window.confirm(`Remover "${p.nome}" do catálogo ativo?`);
+    if (!confirmar) return;
 
-  saveProduct(): void {
-    if (!this.novoProd.nome) return;
-    this.allProducts.unshift({
-      name: this.novoProd.nome, cat: this.novoProd.categoria.toLowerCase(),
-      catLabel: this.novoProd.categoria, desc: this.novoProd.desc,
-      price: this.novoProd.preco, required: this.novoProd.tipo === 'obrigatorio',
-      img: 'https://images.unsplash.com/photo-1555244162-803834f70033?w=400&q=80'
-    });
-    this.prodSalvo = true;
-    setTimeout(() => { this.prodSalvo = false; this.clearForm(); }, 3000);
+    try {
+      await firstValueFrom(this.catalogoApi.desativarProduto(p.id));
+      await this.carregarCatalogo();
+    } catch {
+      window.alert('Não foi possível remover o produto agora. Tente novamente.');
+    }
+  }
+
+  // ---- CADASTRO / EDIÇÃO ----
+
+  private montarRequest(): ProdutoRequest {
+    return {
+      nome: this.novoProd.nome,
+      descricao: this.novoProd.descricao || undefined,
+      categoria: this.novoProd.categoria,
+      tipoItem: this.novoProd.tipoItem,
+      valor: Number(this.novoProd.valor) || 0,
+      unidadeMedida: this.novoProd.unidadeMedida || undefined,
+      quantidadeMinima: this.novoProd.quantidadeMinima ?? undefined,
+      imagemUrl: this.imagemUrlAtual() || undefined
+    };
+  }
+
+  /**
+   * Chamado ao selecionar um arquivo no <input type="file">.
+   * Mostra preview local imediato (createObjectURL) e, em paralelo, envia o
+   * arquivo real para o servidor. Ao concluir, troca o preview pela URL definitiva.
+   */
+  async onArquivoSelecionado(event: Event): Promise<void> {
+    const input = event.target as HTMLInputElement;
+    const arquivo = input.files?.[0];
+    if (!arquivo) return;
+
+    this.erroUpload.set('');
+    this.imagemUrlAtual.set(URL.createObjectURL(arquivo)); // preview instantâneo, antes do upload terminar
+    this.enviandoImagem.set(true);
+
+    try {
+      const resultado = await firstValueFrom(this.catalogoApi.uploadImagem(arquivo));
+      this.imagemUrlAtual.set(this.catalogoApi.resolverUrlImagem(resultado.url));
+    } catch {
+      this.erroUpload.set('Não foi possível enviar a imagem. Tente novamente.');
+    } finally {
+      this.enviandoImagem.set(false);
+      input.value = ''; // permite selecionar o mesmo arquivo de novo, se precisar
+    }
+  }
+
+  /** Permite colar/editar a URL da imagem manualmente, como alternativa ao upload. */
+  onImagemUrlManual(valor: string): void {
+    this.imagemUrlAtual.set(valor);
+  }
+
+  removerImagem(): void {
+    this.imagemUrlAtual.set('');
+    this.erroUpload.set('');
+  }
+
+  async saveProduct(): Promise<void> {
+    this.erroSalvarProduto.set('');
+
+    if (!this.novoProd.nome || !this.novoProd.categoria || !this.novoProd.tipoItem) {
+      this.erroSalvarProduto.set('Preencha ao menos nome, categoria, tipo de item e valor.');
+      return;
+    }
+
+    this.salvandoProduto.set(true);
+
+    try {
+      const request = this.montarRequest();
+
+      if (this.editando && this.novoProd.id !== null) {
+        await firstValueFrom(this.catalogoApi.atualizarProduto(this.novoProd.id, request));
+      } else {
+        await firstValueFrom(this.catalogoApi.criarProduto(request));
+      }
+
+      await this.carregarCatalogo();
+
+      this.prodSalvo.set(true);
+      setTimeout(() => {
+        this.prodSalvo.set(false);
+      }, 3000);
+
+      this.clearForm();
+      this.showPanel('catalogo');
+    } catch {
+      this.erroSalvarProduto.set('Não foi possível salvar o produto agora. Tente novamente em instantes.');
+    } finally {
+      this.salvandoProduto.set(false);
+    }
   }
 
   clearForm(): void {
-    this.novoProd = { nome:'', categoria:'Buffet', preco:0, tipo:'opcional', desc:'' };
+    this.novoProd = this.formVazio();
+    this.imagemUrlAtual.set('');
+    this.erroSalvarProduto.set('');
+    this.erroUpload.set('');
   }
 
   // ---- AUTH ----
   logout(): void { this.authService.logout(); this.router.navigate(['/login']); }
 
   // ---- NAVEGAÇÃO HOME (LOGO) ----
-voltarHome(): void {
-  this.painelAtivo = 'dashboard'; // volta para tela inicial
-  this.tituloPainel = 'Painel';
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  voltarHome(): void {
+    this.painelAtivo = 'dashboard'; // volta para tela inicial
+    this.tituloPainel = 'Painel';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 
-  // opcional: garante URL limpa
-  this.router.navigate(['/home']);
-}
+    // opcional: garante URL limpa
+    this.router.navigate(['/home']);
+  }
 
 }
