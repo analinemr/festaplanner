@@ -1,14 +1,15 @@
 /**
  * COMPONENTE: Login
  *
- * Tela de autenticação do administrador.
+ * Tela de autenticação (cliente e administrador — mesma tela, redireciona
+ * conforme o perfil retornado pelo backend após o login).
  * Usa Reactive Forms do Angular para validação robusta.
- * Envia credenciais ao Spring Boot via AuthService e
- * armazena o token JWT retornado para uso nas requisições seguintes.
+ * Envia credenciais ao Spring Boot via AuthService e armazena o token JWT
+ * retornado para uso nas requisições seguintes (via authInterceptor).
  */
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, Router } from '@angular/router';
+import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { FormBuilder, FormGroup, Validators, ReactiveFormsModule } from '@angular/forms';
 import { AuthService } from '../../core/services/auth-service';
 
@@ -25,10 +26,14 @@ export class LoginComponent implements OnInit {
   erro: string | null = null;
   mostrarSenha = false;
 
+  /** Se veio de "Salvar rascunho" sem login, guarda a URL pra voltar depois — também usado pelo link "Criar conta". */
+  retornoUrl: string | null = null;
+
   constructor(
     private fb: FormBuilder,
     private authService: AuthService,
-    private router: Router
+    private router: Router,
+    private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
@@ -36,6 +41,8 @@ export class LoginComponent implements OnInit {
       email: ['', [Validators.required, Validators.email]],
       senha: ['', [Validators.required, Validators.minLength(6)]]
     });
+
+    this.retornoUrl = this.route.snapshot.queryParamMap.get('retorno');
   }
 
   campoInvalido(campo: string): boolean {
@@ -54,25 +61,28 @@ export class LoginComponent implements OnInit {
     const credenciais = this.loginForm.value;
 
     this.authService.login(credenciais).subscribe({
-      next: () => {
+      next: (resposta) => {
         this.carregando = false;
-        this.router.navigate(['/admin']);
+
+        // Se veio de "Salvar rascunho" sem estar logado, volta para o orçamento
+        // em vez de ir para /admin ou /conta (ver query param `retorno`).
+        if (this.retornoUrl) {
+          this.router.navigateByUrl(this.retornoUrl);
+          return;
+        }
+
+        this.router.navigate([resposta.perfil === 'ADMINISTRADOR' ? '/admin' : '/conta']);
       },
       error: (err) => {
         this.carregando = false;
 
-        /* Em desenvolvimento sem backend, simula login com credenciais admin/admin */
-        if (credenciais.email === 'admin@festaplanner.com.br' || err.status === 0) {
-          /* Salva um token fake para desenvolvimento */
-          localStorage.setItem('fp_token', 'dev-token-fake');
-          localStorage.setItem('fp_user', JSON.stringify({ nome: 'Administrador', email: credenciais.email }));
-          this.router.navigate(['/admin']);
-          return;
+        if (err.status === 401) {
+          this.erro = 'E-mail ou senha incorretos.';
+        } else if (err.status === 0) {
+          this.erro = 'Não foi possível conectar ao servidor. Verifique se o backend está rodando.';
+        } else {
+          this.erro = err.error?.message || 'Erro inesperado. Tente novamente.';
         }
-
-        if (err.status === 401) this.erro = 'E-mail ou senha incorretos.';
-        else if (err.status === 0) this.erro = 'Servidor indisponível.';
-        else this.erro = err.error?.message || 'Erro inesperado. Tente novamente.';
       }
     });
   }

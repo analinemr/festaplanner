@@ -1,0 +1,147 @@
+<!-- NAV -->
+<nav class="nav">
+  <a routerLink="/home" class="nav-logo">
+    <span class="logo-icon">✦</span>
+    <span class="logo-text">Festa<strong>Planner</strong></span>
+  </a>
+  <ul class="nav-links">
+    <li><a routerLink="/home">Início</a></li>
+    <li><a routerLink="/orcamento">Meus Orçamentos</a></li>
+    <li><a href="#">Mensagens</a></li>
+    <li><a routerLink="/conta" class="active">Conta</a></li>
+  </ul>
+</nav>
+
+<section class="conta-page">
+
+  @if (!autenticado) {
+    <div class="conta-aviso">
+      <p>⚠ Nenhum usuário autenticado. Faça login para acessar sua conta.</p>
+      <a routerLink="/login" [queryParams]="{ retorno: '/conta' }" class="btn-primary">Fazer login</a>
+    </div>
+  } @else {
+
+    <div class="conta-header">
+      <span class="eyebrow">Minha Conta</span>
+      <h1>Sua conta</h1>
+      <p>Gerencie seus dados pessoais e acompanhe o andamento dos seus orçamentos.</p>
+    </div>
+
+    <div class="conta-grid">
+
+      <!-- DADOS PESSOAIS -->
+      <div class="conta-card">
+        <div class="conta-card-header">
+          <h3>Dados pessoais</h3>
+          @if (!editandoDados()) {
+            <button type="button" class="link-btn" (click)="iniciarEdicao()">Editar</button>
+          }
+        </div>
+
+        @if (carregandoPerfil()) {
+          <p class="conta-loading">Carregando...</p>
+        } @else if (erroPerfil()) {
+          <p class="conta-erro">{{ erroPerfil() }}</p>
+        } @else if (perfil(); as p) {
+
+          @if (!editandoDados()) {
+            <div class="conta-info-row"><span>Nome</span><strong>{{ p.nome }}</strong></div>
+            <div class="conta-info-row"><span>E-mail</span><strong>{{ p.email }}</strong></div>
+            <div class="conta-info-row"><span>Telefone</span><strong>{{ p.telefone || '—' }}</strong></div>
+          } @else {
+            <div class="form-group">
+              <label>Nome completo</label>
+              <input type="text" [(ngModel)]="nomeEdicao" class="conta-input" />
+            </div>
+            <div class="form-group">
+              <label>Telefone</label>
+              <input type="tel" [(ngModel)]="telefoneEdicao" class="conta-input" placeholder="(21) 99999-9999" />
+            </div>
+
+            @if (erroSalvarPerfil()) {
+              <p class="conta-erro">{{ erroSalvarPerfil() }}</p>
+            }
+
+            <div class="conta-form-actions">
+              <button type="button" class="btn-secondary" (click)="cancelarEdicao()" [disabled]="salvandoPerfil()">Cancelar</button>
+              <button type="button" class="btn-primary" (click)="salvarPerfil()" [disabled]="salvandoPerfil()">
+                {{ salvandoPerfil() ? 'Salvando...' : 'Salvar' }}
+              </button>
+            </div>
+          }
+
+          @if (perfilSalvo()) {
+            <p class="conta-sucesso">✓ Dados atualizados com sucesso!</p>
+          }
+        }
+      </div>
+
+      <!-- SEGURANÇA -->
+      <div class="conta-card">
+        <div class="conta-card-header"><h3>Segurança</h3></div>
+        <p class="conta-desc">Sua senha protege o acesso aos seus dados e orçamentos.</p>
+        <button type="button" class="link-btn" (click)="logout()">Sair da conta</button>
+      </div>
+
+    </div>
+
+    <!-- MEUS ORÇAMENTOS -->
+    <div class="conta-card conta-card-wide">
+      <div class="conta-card-header"><h3>Meus orçamentos</h3></div>
+
+      @if (carregandoOrcamentos()) {
+        <p class="conta-loading">Carregando...</p>
+      } @else if (erroOrcamentos()) {
+        <p class="conta-erro">{{ erroOrcamentos() }}</p>
+      } @else if (orcamentos().length === 0) {
+        <p class="conta-desc">Você ainda não enviou nenhum orçamento. <a routerLink="/orcamento">Criar um agora →</a></p>
+      } @else {
+        <table class="conta-table">
+          <thead><tr><th>Nº</th><th>Evento</th><th>Data</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            <tr *ngFor="let o of orcamentos()">
+              <td>#{{ o.id }}</td>
+              <td>{{ labelTipoEvento(o.tipoEvento) }}</td>
+              <td>{{ formatarData(o.dataEvento) }}</td>
+              <td>R$ {{ o.totalEstimado.toLocaleString('pt-BR') }}</td>
+              <td><span class="status-badge">{{ labelStatus(o.status) }}</span></td>
+              <td>
+                <a *ngIf="o.status === 'RASCUNHO'" [routerLink]="['/orcamento']" [queryParams]="{ retomar: o.id }" class="link-btn">
+                  Continuar editando
+                </a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      }
+    </div>
+
+    <!-- ENVIAR MENSAGEM -->
+    <div class="conta-card conta-card-wide">
+      <div class="conta-card-header"><h3>Deixe sua mensagem</h3></div>
+      <p class="conta-desc">Conte como foi sua festa — sua mensagem pode ser destacada na nossa página inicial.</p>
+
+      <div class="form-group">
+        <label>Referente a qual evento? (opcional)</label>
+        <input type="text" [(ngModel)]="referenteEvento" class="conta-input" placeholder="Ex: Casamento — Julho 2026" />
+      </div>
+      <div class="form-group">
+        <label>Sua mensagem</label>
+        <textarea [(ngModel)]="mensagemTexto" class="conta-input" rows="4" placeholder="Conte sua experiência..."></textarea>
+      </div>
+
+      @if (erroMensagem()) {
+        <p class="conta-erro">{{ erroMensagem() }}</p>
+      }
+      @if (mensagemEnviada()) {
+        <p class="conta-sucesso">✓ Mensagem enviada! Obrigado por compartilhar.</p>
+      }
+
+      <button type="button" class="btn-primary" (click)="enviarMensagem()" [disabled]="enviandoMensagem()">
+        {{ enviandoMensagem() ? 'Enviando...' : 'Enviar mensagem' }}
+      </button>
+    </div>
+
+  }
+
+</section>

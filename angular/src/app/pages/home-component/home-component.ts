@@ -4,10 +4,14 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
+import { AuthService } from '../../core/services/auth-service';
+import { DepoimentoApiService } from '../../core/services/depoimento-api.service';
+import { NavbarComponent } from '../../shared/navbar-component/navbar-component';
 
 @Component({
   selector: 'app-home',
-  imports: [CommonModule, RouterModule],
+  imports: [CommonModule, RouterModule, NavbarComponent],
   templateUrl: './home-component.html',
   styleUrl: './home-component.css',
   encapsulation: ViewEncapsulation.None
@@ -24,6 +28,16 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   private timer: ReturnType<typeof setInterval> | null = null;
   private temasOffset = 0;
   private observer: IntersectionObserver | null = null;
+
+  constructor(
+    private authService: AuthService,
+    private depoimentoApi: DepoimentoApiService
+  ) {}
+
+  /** Pra onde o link "Conta" do menu aponta — /login se ninguém estiver logado. */
+  get linkConta(): string {
+    return this.authService.isAutenticado() ? '/conta' : '/login';
+  }
 
   bgUrl(url: string): string {
     return `url('${url}')`;
@@ -57,14 +71,38 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
     { nome:'Rústico Chique',   tipo:'Casamento',           img:'https://images.unsplash.com/photo-1519225421980-715cb0215aed?w=600&q=80' }
   ];
 
-  depoimentos = [
+  /** Exemplos fixos — preenchem a seção enquanto ainda não há muitos depoimentos reais aprovados. */
+  private readonly depoimentosExemplo = [
     { inicial:'C', nome:'Carla Mendes',   evento:'Casamento — 250 convidados',       texto:'Planejei meu casamento em menos de 10 minutos. A transparência dos preços e a organização da plataforma são impressionantes.' },
     { inicial:'R', nome:'Ricardo Fontes', evento:'Festa Infantil — 80 convidados',   texto:'Minha filha amou a festa temática! Tudo que escolhemos no orçamento foi entregue com perfeição. Recomendo demais!' },
     { inicial:'A', nome:'Ana Luíza',      evento:'Festa de 15 Anos — 150 convidados',texto:'A experiência foi incrível do início ao fim. O sistema de filtros por tema e número de convidados facilita demais a escolha.' }
   ];
 
+  /**
+   * Depoimentos reais aprovados pelo ADM entram primeiro; os exemplos fixos
+   * completam a lista até um total de 6, pra seção nunca ficar vazia/curta
+   * enquanto poucos depoimentos de verdade existem ainda.
+   */
+  depoimentos: { inicial: string; nome: string; evento: string; texto: string }[] = [...this.depoimentosExemplo];
+
+  private async carregarDepoimentosReais(): Promise<void> {
+    try {
+      const aprovados = await firstValueFrom(this.depoimentoApi.listarAprovados());
+      const reais = aprovados.map(d => ({
+        inicial: d.nomeCliente?.[0]?.toUpperCase() ?? '★',
+        nome: d.nomeCliente,
+        evento: d.referenteEvento || 'Cliente FestaPlanner',
+        texto: d.mensagem
+      }));
+      this.depoimentos = [...reais, ...this.depoimentosExemplo].slice(0, 6);
+    } catch {
+      // Sem conexão com o backend ainda: mantém só os exemplos fixos, sem quebrar a página.
+    }
+  }
+
   ngOnInit(): void {
     this.timer = setInterval(() => this.proximo(), 5000);
+    this.carregarDepoimentosReais();
   }
 
   ngAfterViewInit(): void {

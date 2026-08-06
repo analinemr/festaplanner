@@ -11,14 +11,16 @@ public class RegistroRequest {
     @NotBlank
     private String nome;
 
-    @NotBlank @Email
+    @NotBlank
+    @Email
     private String email;
 
-    @NotBlank @Size(min = 6, message = "A senha deve ter ao menos 6 caracteres")
+    @NotBlank
+    @Size(min = 6, message = "A senha deve ter no mínimo 6 caracteres")
     private String senha;
 
     private String telefone;
 
-    /** CLIENTE ou ADMINISTRADOR. Default CLIENTE se não informado. */
-    private Perfil perfil = Perfil.CLIENTE;
+    /** Opcional — se nulo, o backend assume CLIENTE (ver AuthService.registrar). */
+    private Perfil perfil;
 }

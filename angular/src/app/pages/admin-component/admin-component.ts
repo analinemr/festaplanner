@@ -9,6 +9,8 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService } from '../../core/services/auth-service';
 import { CatalogoApiService, ApiProduto, ProdutoRequest } from '../../core/services/catalogo-api.service';
 import { OrcamentoApiService, ApiOrcamento } from '../../core/services/orcamento-api.service';
+import { UsuarioApiService, UsuarioResponse } from '../../core/services/usuario-api.service';
+import { DepoimentoApiService, DepoimentoResponse } from '../../core/services/depoimento-api.service';
 
 /**
  * Formulário de cadastro/edição — espelha ProdutoRequest, com `id` extra para saber se é edição.
@@ -231,37 +233,7 @@ export class AdminComponent implements OnInit, AfterViewInit {
     return mapa;
   }
 
-  cellsMini:   { num: string; cls: string }[] = [];
-  cellsGrande: { num: string; cls: string; evento?: string }[] = [];
-
-  /** Próximos eventos confirmados/pré-reservados a partir de hoje, calculado sobre pedidos(). */
-  get proximosEventos(): { day: string; mon: string; name: string; info: string; cls: string }[] {
-    const mesesAbrev = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
-    const hojeIso = new Date().toISOString().slice(0, 10);
-
-    return this.pedidos()
-      .filter(p => (p.status === 'CONFIRMADO' || p.status === 'PRE_RESERVA') && p.dataEvento && p.dataEvento >= hojeIso)
-      .sort((a, b) => (a.dataEvento ?? '').localeCompare(b.dataEvento ?? ''))
-      .slice(0, 6)
-      .map(p => {
-        const [, mes, dia] = (p.dataEvento ?? '').split('-').map(Number);
-        return {
-          day: String(dia).padStart(2, '0'),
-          mon: mesesAbrev[mes - 1],
-          name: p.nomeContato ?? this.labelTipoEvento(p.tipoEvento),
-          info: `${this.labelTipoEvento(p.tipoEvento)} · ${p.numeroConvidados} conv.`,
-          cls: p.status === 'CONFIRMADO' ? 'confirmed' : 'prereserva'
-        };
-      });
-  }
-
-  // ---- RELATÓRIOS (ainda mock — próxima etapa do backend) ----
-  barReport = [
-    { label:'Casamento', val:'R$ 99k', pct:100, color:'#2D2D2D' },
-    { label:'15 Anos',   val:'R$ 79k', pct:80,  color:'#C9A96E' },
-    { label:'Infantil',  val:'R$ 62k', pct:63,  color:'#9CA3AF' },
-    { label:'Temático',  val:'R$ 42k', pct:43,  color:'#E5E7EB' }
-  ];
+  cellsMini: { num: string; cls: string }[] = [];
 
   // ==================== CATÁLOGO (real, conectado ao backend) ====================
 
@@ -336,7 +308,9 @@ export class AdminComponent implements OnInit, AfterViewInit {
     private authService: AuthService,
     private router: Router,
     private catalogoApi: CatalogoApiService,
-    private orcamentoApi: OrcamentoApiService
+    private orcamentoApi: OrcamentoApiService,
+    private usuarioApi: UsuarioApiService,
+    private depoimentoApi: DepoimentoApiService
   ) {}
 
   ngOnInit(): void {
@@ -364,13 +338,135 @@ export class AdminComponent implements OnInit, AfterViewInit {
   showPanel(id: string): void {
     this.painelAtivo = id;
     const titulos: Record<string, string> = {
-      dashboard:'Painel', pedidos:'Pedidos', agenda:'Agenda',
+      dashboard:'Painel', pedidos:'Pedidos',
       catalogo:'Catálogo', cadastro:'Novo Produto',
-      relatorios:'Relatórios', configuracoes:'Configurações'
+      depoimentos:'Depoimentos', perfil:'Meu Perfil'
     };
     this.tituloPainel = titulos[id] || id;
     if (id === 'dashboard') setTimeout(() => this.desenharDonut(), 100);
-    if (id === 'agenda')    this.gerarCalendarioGrande();
+    if (id === 'perfil' && !this.perfilAdmin()) this.carregarPerfilAdmin();
+    if (id === 'depoimentos') this.carregarDepoimentos();
+  }
+
+  // ==================== DEPOIMENTOS (moderação) ====================
+
+  depoimentos = signal<DepoimentoResponse[]>([]);
+  carregandoDepoimentos = signal(false);
+  erroDepoimentos = signal('');
+
+  /** Pendentes primeiro (mais recentes no topo), aprovados depois — pra moderar sem precisar filtrar. */
+  get depoimentosPendentes(): DepoimentoResponse[] {
+    return this.depoimentos().filter(d => !d.aprovado);
+  }
+
+  get depoimentosAprovados(): DepoimentoResponse[] {
+    return this.depoimentos().filter(d => d.aprovado);
+  }
+
+  async carregarDepoimentos(): Promise<void> {
+    this.carregandoDepoimentos.set(true);
+    this.erroDepoimentos.set('');
+    try {
+      const dados = await firstValueFrom(this.depoimentoApi.listarParaAdmin());
+      this.depoimentos.set(dados);
+    } catch {
+      this.erroDepoimentos.set('Não foi possível carregar os depoimentos agora.');
+    } finally {
+      this.carregandoDepoimentos.set(false);
+    }
+  }
+
+  async aprovarDepoimento(id: number): Promise<void> {
+    try {
+      const atualizado = await firstValueFrom(this.depoimentoApi.aprovar(id));
+      this.depoimentos.set(this.depoimentos().map(d => d.id === atualizado.id ? atualizado : d));
+    } catch {
+      window.alert('Não foi possível aprovar esse depoimento agora. Tente novamente.');
+    }
+  }
+
+  async excluirDepoimento(id: number): Promise<void> {
+    const confirmar = window.confirm('Remover este depoimento? Essa ação não pode ser desfeita.');
+    if (!confirmar) return;
+
+    try {
+      await firstValueFrom(this.depoimentoApi.excluir(id));
+      this.depoimentos.set(this.depoimentos().filter(d => d.id !== id));
+    } catch {
+      window.alert('Não foi possível remover esse depoimento agora. Tente novamente.');
+    }
+  }
+
+  // ==================== MEU PERFIL (ADM) ====================
+
+  perfilAdmin = signal<UsuarioResponse | null>(null);
+  carregandoPerfilAdmin = signal(false);
+  erroPerfilAdmin = signal('');
+
+  editandoPerfilAdmin = signal(false);
+  nomeEdicaoAdmin = '';
+  telefoneEdicaoAdmin = '';
+  salvandoPerfilAdmin = signal(false);
+  erroSalvarPerfilAdmin = signal('');
+  perfilAdminSalvo = signal(false);
+
+  async carregarPerfilAdmin(): Promise<void> {
+    this.carregandoPerfilAdmin.set(true);
+    this.erroPerfilAdmin.set('');
+    try {
+      const dados = await firstValueFrom(this.usuarioApi.meuPerfil());
+      this.perfilAdmin.set(dados);
+      this.nomeEdicaoAdmin = dados.nome;
+      this.telefoneEdicaoAdmin = dados.telefone ?? '';
+    } catch {
+      this.erroPerfilAdmin.set('Não foi possível carregar seus dados agora.');
+    } finally {
+      this.carregandoPerfilAdmin.set(false);
+    }
+  }
+
+  iniciarEdicaoPerfilAdmin(): void {
+    this.editandoPerfilAdmin.set(true);
+  }
+
+  cancelarEdicaoPerfilAdmin(): void {
+    const p = this.perfilAdmin();
+    this.nomeEdicaoAdmin = p?.nome ?? '';
+    this.telefoneEdicaoAdmin = p?.telefone ?? '';
+    this.editandoPerfilAdmin.set(false);
+    this.erroSalvarPerfilAdmin.set('');
+  }
+
+  async salvarPerfilAdmin(): Promise<void> {
+    if (!this.nomeEdicaoAdmin.trim()) {
+      this.erroSalvarPerfilAdmin.set('O nome não pode ficar em branco.');
+      return;
+    }
+    this.salvandoPerfilAdmin.set(true);
+    this.erroSalvarPerfilAdmin.set('');
+    try {
+      const atualizado = await firstValueFrom(
+        this.usuarioApi.atualizarMeuPerfil({ nome: this.nomeEdicaoAdmin, telefone: this.telefoneEdicaoAdmin })
+      );
+      this.perfilAdmin.set(atualizado);
+      this.editandoPerfilAdmin.set(false);
+
+      // Mantém o nome/inicial exibidos na sidebar em sincronia, e persiste no localStorage
+      // (mesmo padrão usado pelo AuthService após login).
+      this.nomeUsuario = atualizado.nome;
+      this.inicialUsuario = atualizado.nome[0]?.toUpperCase() ?? 'A';
+      this.authService.salvarSessao(this.authService.getToken() ?? '', {
+        ...this.authService.getUsuario(),
+        nome: atualizado.nome
+      });
+
+      this.perfilAdminSalvo.set(true);
+      setTimeout(() => this.perfilAdminSalvo.set(false), 3000);
+    } catch {
+      this.erroSalvarPerfilAdmin.set('Não foi possível salvar agora. Tente novamente.');
+    } finally {
+      this.salvandoPerfilAdmin.set(false);
+    }
   }
 
   // ==================== PEDIDOS — CRUD REAL ====================
@@ -425,20 +521,6 @@ export class AdminComponent implements OnInit, AfterViewInit {
       const isToday = d === today.getDate() && this.calMonth === today.getMonth() && this.calYear === today.getFullYear();
       const evCls = eventos[d] || '';
       this.cellsMini.push({ num: String(d), cls: [evCls, isToday ? 'today' : ''].join(' ').trim() });
-    }
-  }
-
-  gerarCalendarioGrande(): void {
-    const today = new Date();
-    const first = new Date(2026, 9, 1).getDay();
-    const eventos = this.eventosPorDia(2026, 9);
-    this.cellsGrande = [];
-    for (let i = 0; i < first; i++) this.cellsGrande.push({ num:'', cls:'empty' });
-    for (let d = 1; d <= 31; d++) {
-      const evCls = eventos[d] || '';
-      const isToday = d === today.getDate() && today.getMonth() === 9 && today.getFullYear() === 2026 ? 'today' : '';
-      const evento = evCls === 'confirmed' ? '● Confirmado' : evCls === 'prereserva' ? '● Pré-Reserva' : undefined;
-      this.cellsGrande.push({ num: String(d), cls: [evCls, isToday].join(' ').trim(), evento });
     }
   }
 

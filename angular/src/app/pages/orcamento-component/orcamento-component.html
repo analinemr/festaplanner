@@ -1,17 +1,5 @@
 <!-- NAV (sempre sólida na página de orçamento) -->
-<nav class="nav">
-  <a routerLink="/home" class="nav-logo">
-    <span class="logo-icon">✦</span>
-    <span class="logo-text">Festa<strong>Planner</strong></span>
-  </a>
-  <ul class="nav-links">
-    <li><a routerLink="/home">Início</a></li>
-    <li><a routerLink="/orcamento" class="active">Meus Orçamentos</a></li>
-    <li><a href="#">Mensagens</a></li>
-    <li><a href="#">Conta</a></li>
-  </ul>
-  <a routerLink="/login" class="btn-adm">Área ADM</a>
-</nav>
+<app-navbar [sempreComFundo]="true"></app-navbar>
 
 <section class="orcamento-page">
 
@@ -685,9 +673,12 @@
         </div>
 
         <div class="budget-cta">
-          <button type="button" class="btn-save-budget" [class.saved]="rascunhoSalvo" (click)="salvarRascunho()">
-            {{ rascunhoSalvo ? '✓ Rascunho salvo!' : '💾 Salvar rascunho' }}
+          <button type="button" class="btn-save-budget" [class.saved]="rascunhoSalvo()" (click)="salvarRascunho()" [disabled]="salvandoRascunho()">
+            {{ salvandoRascunho() ? 'Salvando...' : (rascunhoSalvo() ? '✓ Rascunho salvo!' : '💾 Salvar rascunho') }}
           </button>
+          @if (erroRascunho()) {
+            <p style="color:#d4a017; font-size:0.78rem; margin-top:6px;">{{ erroRascunho() }}</p>
+          }
           <button type="button" class="btn-send-budget" (click)="irParaEtapa(4)">Finalizar →</button>
         </div>
 

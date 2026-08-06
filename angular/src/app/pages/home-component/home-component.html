@@ -1,24 +1,12 @@
 <!-- NAVBAR -->
-<nav class="nav" [class.scrolled]="scrolled">
-  <a routerLink="/home" class="nav-logo">
-    <span class="logo-icon">✦</span>
-    <span class="logo-text">Festa<strong>Planner</strong></span>
-  </a>
-  <ul class="nav-links">
-    <li><a routerLink="/home"      routerLinkActive="active" [routerLinkActiveOptions]="{exact:true}">Início</a></li>
-    <li><a routerLink="/orcamento" routerLinkActive="active">Meus Orçamentos</a></li>
-    <li><a href="#">Mensagens</a></li>
-    <li><a href="#">Conta</a></li>
-  </ul>
-  <a routerLink="/orcamento" class="btn-cta">Orçamento</a>
-  <button class="hamburger" (click)="toggleMenu()" aria-label="Menu">&#9776;</button>
-</nav>
+<app-navbar></app-navbar>
 
 <!-- MOBILE MENU -->
 <div class="mobile-menu" [class.open]="menuAberto">
   <a routerLink="/home"      (click)="fecharMenu()">Início</a>
   <a routerLink="/orcamento" (click)="fecharMenu()">Meus Orçamentos</a>
-  <a href="#"                (click)="fecharMenu()">Mensagens</a>
+  <!--<a href="#"                (click)="fecharMenu()">Mensagens</a>-->
+  <a [routerLink]="linkConta" (click)="fecharMenu()">Conta</a>
   <a routerLink="/orcamento" class="btn-cta-mobile" (click)="fecharMenu()">Orçamento</a>
 </div>
 

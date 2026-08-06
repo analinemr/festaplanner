@@ -1,5 +1,5 @@
 <!--
-  LOGIN COMPONENT — Tela de Autenticação do Administrador
+  LOGIN COMPONENT — Tela de Autenticação (Cliente e Administrador)
   Layout: Split-screen — imagem à esquerda, formulário à direita
   Design: High-end, minimalista, paleta branco/prata/preto
   Bootstrap 5 + CSS customizado (login-component.css)
@@ -24,7 +24,7 @@
       <!-- Citação central motivadora -->
       <div class="fp-login-quote">
         <p class="fp-quote-text">"Cada festa é uma obra de arte."</p>
-        <p class="fp-quote-sub">Painel Administrativo — Área Exclusiva</p>
+        <p class="fp-quote-sub">Entre para continuar planejando o seu evento.</p>
       </div>
     </div>
   </div>
@@ -45,9 +45,9 @@
 
       <!-- Cabeçalho do formulário -->
       <div class="fp-login-header mb-4">
-        <p class="fp-eyebrow">Área Restrita</p>
+        <p class="fp-eyebrow">Acesso à Plataforma</p>
         <h1 class="fp-login-title">Bem-vindo de volta</h1>
-        <p class="fp-login-subtitle">Acesse o painel de controle da sua casa de festas.</p>
+        <p class="fp-login-subtitle">Entre com sua conta para continuar.</p>
       </div>
 
       <!-- ALERTA DE ERRO — exibido via *ngIf quando erro !== null -->
@@ -82,7 +82,7 @@
             id="email"
             class="form-control fp-input"
             formControlName="email"
-            placeholder="admin@festaplanner.com.br"
+            placeholder="seu@email.com"
             autocomplete="email"
             [class.is-invalid]="campoInvalido('email')"
           />
@@ -147,15 +147,23 @@
         >
           <!-- *ngIf → exibe spinner ou texto conforme o estado de carregamento -->
           <span *ngIf="carregando" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-          <span *ngIf="!carregando">Entrar no Painel</span>
+          <span *ngIf="!carregando">Entrar</span>
           <span *ngIf="carregando">Autenticando...</span>
         </button>
 
       </form>
       <!-- FIM FORMULÁRIO -->
 
-      <!-- Link para voltar à página pública -->
+      <!-- Link para cadastro — usuário ainda não tem conta -->
       <div class="fp-login-footer mt-4 text-center">
+        <span class="fp-login-subtitle">
+          Ainda não tem conta?
+          <a routerLink="/cadastro" [queryParams]="{ retorno: retornoUrl }">Criar conta</a>
+        </span>
+      </div>
+
+      <!-- Link para voltar à página pública -->
+      <div class="fp-login-footer mt-2 text-center">
         <a routerLink="/home" class="fp-link-voltar">
           ← Voltar ao site
         </a>

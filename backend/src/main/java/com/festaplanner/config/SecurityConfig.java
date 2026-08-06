@@ -62,6 +62,9 @@ public class SecurityConfig {
                 // Imagens enviadas pelo ADM ficam públicas (usadas no catálogo e no wizard do cliente)
                 .requestMatchers("GET", "/uploads/**").permitAll()
 
+                // Depoimentos aprovados aparecem na Home sem precisar de login
+                .requestMatchers("GET", "/api/depoimentos/aprovados").permitAll()
+
                 // "Meus Orçamentos" continua exigindo login (histórico do cliente cadastrado)
                 .requestMatchers("GET", "/api/orcamentos/meus").authenticated()
 
@@ -95,7 +98,7 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOriginPatterns(List.of("*")); // restrinja ao domínio do front em produção
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true);
 

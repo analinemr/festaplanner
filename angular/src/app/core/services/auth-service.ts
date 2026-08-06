@@ -1,18 +1,25 @@
 /**
  * SERVIÇO: Autenticação
  *
- * Gerencia login, logout e armazenamento do token JWT
+ * Gerencia login, registro, logout e armazenamento do token JWT
  * retornado pelo Spring Boot Security.
  *
  * Endpoints Spring Boot esperados:
- *   POST /api/auth/login   → { email, senha } → retorna { token, nome, ... }
- *   POST /api/auth/logout  → Invalida sessão no servidor
+ *   POST /api/auth/login    → { email, senha } → retorna { token, nome, ... }
+ *   POST /api/auth/registro → { nome, email, senha, telefone? } → retorna { token, nome, ... }
  */
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, tap } from 'rxjs';
 import { Login, AuthResponse } from '../../models/login';
 import { environment } from '../../../environments/environment';
+
+export interface RegistroDados {
+  nome: string;
+  email: string;
+  senha: string;
+  telefone?: string;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -42,23 +49,22 @@ export class AuthService {
    */
   login(credenciais: Login): Observable<AuthResponse> {
     return this.http.post<AuthResponse>(`${this.apiUrl}/login`, credenciais).pipe(
-      tap((resposta: AuthResponse) => {
-        /* Salva o token JWT — será usado pelo HTTP Interceptor em cada requisição */
-        localStorage.setItem(this.TOKEN_KEY, resposta.token);
+      tap((resposta: AuthResponse) => this.salvarSessao(resposta.token, resposta))
+    );
+  }
 
-        /* Salva os dados básicos do admin para exibir na interface */
-        localStorage.setItem(this.USER_KEY, JSON.stringify({
-          nome: resposta.nome,
-          email: resposta.email,
-          perfil: resposta.perfil
-        }));
-      })
+  /**
+   * Cria uma nova conta (perfil CLIENTE por padrão) e já loga automaticamente,
+   * já que o backend devolve um token pronto na resposta de /registro.
+   */
+  registrar(dados: RegistroDados): Observable<AuthResponse> {
+    return this.http.post<AuthResponse>(`${this.apiUrl}/registro`, dados).pipe(
+      tap((resposta: AuthResponse) => this.salvarSessao(resposta.token, resposta))
     );
   }
 
   /**
    * Realiza logout: remove token e dados do localStorage
-   * O Spring Boot invalida a sessão no servidor
    */
   logout(): void {
     localStorage.removeItem(this.TOKEN_KEY);
@@ -91,15 +97,14 @@ export class AuthService {
     return dados ? JSON.parse(dados) : null;
   }
 
-  /** Salva token e dados do admin (chamado pelo LoginService) */
-  salvarSessao(token: string, admin: any): void {
-    localStorage.setItem(this.TOKEN_KEY, token); // Ajustado para usar a constante da classe
-    localStorage.setItem(this.USER_KEY, JSON.stringify(admin)); // Ajustado para usar a constante da classe
+  /** Salva token e dados do usuário logado (cliente ou admin). */
+  salvarSessao(token: string, usuario: any): void {
+    localStorage.setItem(this.TOKEN_KEY, token);
+    localStorage.setItem(this.USER_KEY, JSON.stringify(usuario));
   }
 
-  /** Verifica se há token ativo */
+  /** Alias de isAutenticado(), mantido por compatibilidade com código existente. */
   estaAutenticado(): boolean {
-    return !!localStorage.getItem(this.TOKEN_KEY); // Ajustado para usar a constante da classe
+    return this.isAutenticado();
   }
-
-} // <--- A classe agora fecha aqui, englobando tudo!
+}

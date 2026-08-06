@@ -1,0 +1,144 @@
+<!--
+  CADASTRO COMPONENT — Criação de conta (cliente)
+  Layout: Split-screen — imagem à esquerda, formulário à direita
+  Mesma linguagem visual do Login, em CSS próprio (auto-contido).
+-->
+<div class="fp-cad-wrapper">
+
+  <!-- COLUNA ESQUERDA — Imagem decorativa (oculta no mobile) -->
+  <div class="fp-cad-visual d-none d-lg-flex">
+    <div class="fp-cad-overlay"></div>
+    <div class="fp-cad-visual-content">
+      <div class="fp-cad-logo">
+        <span class="fp-logo-icon">✦</span>
+        <span class="fp-logo-text">Festa<strong>Planner</strong></span>
+      </div>
+      <div class="fp-cad-quote">
+        <p class="fp-quote-text">"Da ideia ao orçamento em minutos."</p>
+        <p class="fp-quote-sub">Crie sua conta e acompanhe tudo em um só lugar.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLUNA DIREITA — Formulário -->
+  <div class="fp-cad-form-col">
+
+    <div class="fp-cad-logo-mobile d-flex d-lg-none align-items-center gap-2 mb-5">
+      <span class="fp-logo-icon">✦</span>
+      <span class="fp-logo-text">Festa<strong>Planner</strong></span>
+    </div>
+
+    <div class="fp-cad-box">
+
+      <div class="fp-cad-header mb-4">
+        <p class="fp-eyebrow">Criar Conta</p>
+        <h1 class="fp-cad-title">Vamos começar</h1>
+        <p class="fp-cad-subtitle" *ngIf="!vindoDeRascunho">Preencha seus dados para criar sua conta gratuita.</p>
+      </div>
+
+      <div *ngIf="vindoDeRascunho" class="fp-alert-info mb-4">
+        💾 Seu orçamento foi salvo! Crie sua conta pra continuar de onde parou quando quiser.
+      </div>
+
+      <div *ngIf="erro" class="fp-alert-error d-flex align-items-center gap-2 mb-4" role="alert">
+        <span class="fp-alert-icon">⚠</span>
+        <span>{{ erro }}</span>
+        <button type="button" class="btn-close ms-auto" (click)="limparErro()" aria-label="Fechar"></button>
+      </div>
+
+      <form [formGroup]="cadastroForm" (ngSubmit)="onCadastrar()" novalidate>
+
+        <div class="fp-form-group mb-3">
+          <label for="nome" class="fp-label">Nome completo</label>
+          <input
+            type="text"
+            id="nome"
+            class="fp-input"
+            formControlName="nome"
+            placeholder="Seu nome completo"
+            autocomplete="name"
+            [class.is-invalid]="campoInvalido('nome')"
+          />
+          <div class="fp-validation-msg" *ngIf="campoInvalido('nome')">
+            <span *ngIf="cadastroForm.get('nome')?.errors?.['required']">Nome é obrigatório.</span>
+            <span *ngIf="cadastroForm.get('nome')?.errors?.['minlength']">Digite seu nome completo.</span>
+          </div>
+        </div>
+
+        <div class="fp-form-group mb-3">
+          <label for="email" class="fp-label">E-mail</label>
+          <input
+            type="email"
+            id="email"
+            class="fp-input"
+            formControlName="email"
+            placeholder="seu@email.com"
+            autocomplete="email"
+            [class.is-invalid]="campoInvalido('email')"
+          />
+          <div class="fp-validation-msg" *ngIf="campoInvalido('email')">
+            <span *ngIf="cadastroForm.get('email')?.errors?.['required']">E-mail é obrigatório.</span>
+            <span *ngIf="cadastroForm.get('email')?.errors?.['email']">Informe um e-mail válido.</span>
+          </div>
+        </div>
+
+        <div class="fp-form-group mb-3">
+          <label for="telefone" class="fp-label">WhatsApp (opcional)</label>
+          <input
+            type="tel"
+            id="telefone"
+            class="fp-input"
+            formControlName="telefone"
+            placeholder="(21) 99999-9999"
+            autocomplete="tel"
+          />
+        </div>
+
+        <div class="fp-form-group mb-4">
+          <label for="senha" class="fp-label">Senha</label>
+          <div class="fp-input-wrapper">
+            <input
+              [type]="mostrarSenha ? 'text' : 'password'"
+              id="senha"
+              class="fp-input"
+              formControlName="senha"
+              placeholder="••••••••"
+              autocomplete="new-password"
+              [class.is-invalid]="campoInvalido('senha')"
+            />
+            <button
+              type="button"
+              class="fp-toggle-senha"
+              (click)="alternarSenha()"
+              [attr.aria-label]="mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'"
+            >
+              {{ mostrarSenha ? '🙈' : '👁️' }}
+            </button>
+          </div>
+          <div class="fp-validation-msg" *ngIf="campoInvalido('senha')">
+            <span *ngIf="cadastroForm.get('senha')?.errors?.['required']">Senha é obrigatória.</span>
+            <span *ngIf="cadastroForm.get('senha')?.errors?.['minlength']">Mínimo de 6 caracteres.</span>
+          </div>
+        </div>
+
+        <button type="submit" class="fp-btn-cad w-100" [disabled]="carregando">
+          <span *ngIf="carregando">Criando conta...</span>
+          <span *ngIf="!carregando">Criar minha conta</span>
+        </button>
+
+      </form>
+
+      <div class="fp-cad-footer mt-4 text-center">
+        <span class="fp-cad-subtitle">
+          Já tem conta?
+          <a routerLink="/login" [queryParams]="{ retorno: retornoUrl }">Entrar</a>
+        </span>
+      </div>
+
+      <div class="fp-cad-footer mt-2 text-center">
+        <a routerLink="/home" class="fp-link-voltar">← Voltar ao site</a>
+      </div>
+
+    </div>
+  </div>
+</div>

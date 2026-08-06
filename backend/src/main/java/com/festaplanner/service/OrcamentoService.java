@@ -109,6 +109,12 @@ public class OrcamentoService {
     public Orcamento enviar(Long orcamentoId, OrcamentoConfirmarRequest request, Usuario clienteLogado) {
         Orcamento orcamento = buscarDoCliente(orcamentoId, clienteLogado);
 
+        // Se o orçamento foi montado por um visitante e ele logou/criou conta antes
+        // de enviar, vincula a conta agora (mesma lógica do salvarRascunho).
+        if (orcamento.getCliente() == null && clienteLogado != null) {
+            orcamento.setCliente(clienteLogado);
+        }
+
         orcamento.setNomeContato(request.getNomeContato());
         orcamento.setEmailContato(request.getEmailContato());
         orcamento.setWhatsappContato(request.getWhatsappContato());
@@ -120,10 +126,21 @@ public class OrcamentoService {
         return orcamentoRepository.save(orcamento);
     }
 
-    /** Botão "Salvar rascunho", presente em todas as etapas do wizard. */
+    /**
+     * Botão "Salvar rascunho", presente em todas as etapas do wizard.
+     * Se o orçamento foi criado por um visitante sem login e a pessoa está
+     * autenticada agora (acabou de criar conta ou logar), vincula a conta a
+     * esse orçamento — é assim que o rascunho "segue" o cliente depois do
+     * cadastro, mesmo tendo sido criado antes de ele se identificar.
+     */
     @Transactional
     public Orcamento salvarRascunho(Long orcamentoId, Usuario clienteLogado) {
         Orcamento orcamento = buscarDoCliente(orcamentoId, clienteLogado);
+
+        if (orcamento.getCliente() == null && clienteLogado != null) {
+            orcamento.setCliente(clienteLogado);
+        }
+
         orcamento.setAtualizadoEm(LocalDateTime.now());
         return orcamentoRepository.save(orcamento);
     }

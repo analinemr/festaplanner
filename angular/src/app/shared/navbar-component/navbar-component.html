@@ -9,7 +9,7 @@
   Paleta original: branco sobre hero, cinza carvão ao rolar
 -->
 
-<nav class="nav" [class.scrolled]="scrolled">
+<nav class="nav" [class.scrolled]="mostrarComFundo">
 
   <!-- LOGO -->
   <a routerLink="/home" class="nav-logo">
@@ -29,7 +29,7 @@
         Meus Orçamentos
       </a>
     </li>
-    <li>
+    <!--<li>
       <a routerLink="/catalogo" routerLinkActive="active">
         Catálogo
       </a>
@@ -38,9 +38,9 @@
       <a href="#" routerLinkActive="active">
         Mensagens
       </a>
-    </li>
+    </li>-->
     <li>
-      <a href="#" routerLinkActive="active">
+      <a [routerLink]="linkConta" routerLinkActive="active">
         Conta
       </a>
     </li>
@@ -65,7 +65,8 @@
 <div class="mobile-menu" [class.open]="menuAberto">
   <a routerLink="/home"      (click)="fecharMenu()">Início</a>
   <a routerLink="/orcamento" (click)="fecharMenu()">Meus Orçamentos</a>
-  <a routerLink="/catalogo"  (click)="fecharMenu()">Catálogo</a>
-  <a href="#"                (click)="fecharMenu()">Mensagens</a>
+  <!--<a routerLink="/catalogo"  (click)="fecharMenu()">Catálogo</a>
+  <a href="#"                (click)="fecharMenu()">Mensagens</a>-->
+  <a [routerLink]="linkConta" (click)="fecharMenu()">Conta</a>
   <a routerLink="/orcamento" class="btn-cta-mobile" (click)="fecharMenu()">Orçamento</a>
 </div>

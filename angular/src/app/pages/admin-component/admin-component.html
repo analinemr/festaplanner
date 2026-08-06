@@ -15,25 +15,23 @@
       <span class="nav-icon">📋</span>Pedidos
       <span class="badge" *ngIf="totalNovos > 0">{{ totalNovos }}</span>
     </a>
-    <a class="nav-item" [class.active]="painelAtivo==='agenda'" (click)="showPanel('agenda')">
-      <span class="nav-icon">📅</span>Agenda
-    </a>
     <a class="nav-item" [class.active]="painelAtivo==='catalogo'" (click)="showPanel('catalogo')">
       <span class="nav-icon">🗂️</span>Catálogo
     </a>
     <a class="nav-item" [class.active]="painelAtivo==='cadastro'" (click)="showPanel('cadastro')">
       <span class="nav-icon">➕</span>Novo Produto
     </a>
-    <a class="nav-item" [class.active]="painelAtivo==='relatorios'" (click)="showPanel('relatorios')">
-      <span class="nav-icon">📊</span>Relatórios
+    <a class="nav-item" [class.active]="painelAtivo==='depoimentos'" (click)="showPanel('depoimentos')">
+      <span class="nav-icon">💬</span>Depoimentos
+      <span class="badge" *ngIf="depoimentosPendentes.length > 0">{{ depoimentosPendentes.length }}</span>
     </a>
-    <a class="nav-item" [class.active]="painelAtivo==='configuracoes'" (click)="showPanel('configuracoes')">
-      <span class="nav-icon">⚙️</span>Configurações
+    <a class="nav-item" [class.active]="painelAtivo==='perfil'" (click)="showPanel('perfil')">
+      <span class="nav-icon">👤</span>Meu Perfil
     </a>
   </nav>
 
   <div class="sidebar-footer">
-    <div class="sidebar-user">
+    <div class="sidebar-user" (click)="showPanel('perfil')" style="cursor:pointer">
       <div class="user-avatar">{{ inicialUsuario }}</div>
       <div>
         <span class="user-name">{{ nomeUsuario }}</span>
@@ -209,49 +207,6 @@
     </div>
   </div>
 
-  <!-- ======================== AGENDA ======================== -->
-  <div class="panel" [class.active]="painelAtivo==='agenda'">
-    <div class="card" style="margin-bottom:24px">
-      <div class="card-header">
-        <h3 class="card-title">Agenda Completa — {{ anoAtual }}</h3>
-        <a href="https://calendar.google.com" target="_blank" class="btn-gcal" style="margin-top:0">📅 Sincronizar Google Agenda</a>
-      </div>
-      <div class="big-calendar">
-        <div *ngFor="let d of diasSemana" class="big-cal-day-header">{{ d }}</div>
-        <div *ngFor="let cell of cellsGrande"
-             class="big-cal-day"
-             [ngClass]="cell.cls">
-          {{ cell.num }}
-          <span class="event-dot" *ngIf="cell.evento">{{ cell.evento }}</span>
-        </div>
-      </div>
-      <div class="cal-legend" style="margin-top:16px">
-        <span class="leg confirmed">Confirmado</span>
-        <span class="leg prereserva2">Pré-Reserva</span>
-        <span class="leg available">Disponível</span>
-        <span class="leg blocked">Bloqueado</span>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-header"><h3 class="card-title">Próximos Eventos</h3></div>
-      <div class="upcoming-list">
-        <div *ngFor="let ev of proximosEventos" class="upcoming-item">
-          <div class="upcoming-date">
-            <div class="day">{{ ev.day }}</div>
-            <div class="mon">{{ ev.mon }}</div>
-          </div>
-          <div class="upcoming-info">
-            <strong>{{ ev.name }}</strong>
-            <span>{{ ev.info }}</span>
-          </div>
-          <span class="status-badge" [ngClass]="ev.cls" style="margin-left:auto">
-            {{ ev.cls === 'confirmed' ? 'Confirmado' : 'Pré-Reserva' }}
-          </span>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- ======================== CATÁLOGO ======================== -->
   <div class="panel" [class.active]="painelAtivo==='catalogo'">
     <div class="catalog-header-bar">
@@ -297,6 +252,117 @@
       </div>
 
     }
+  </div>
+
+  <!-- ======================== DEPOIMENTOS (moderação) ======================== -->
+  <div class="panel" [class.active]="painelAtivo==='depoimentos'">
+    <h3 class="card-title" style="margin:0 0 20px">Moderação de Depoimentos</h3>
+
+    @if (carregandoDepoimentos()) {
+      <p style="color:var(--slate);font-size:.85rem">Carregando...</p>
+    } @else if (erroDepoimentos()) {
+      <p style="color:#d4a017;font-size:.85rem">{{ erroDepoimentos() }}</p>
+    } @else {
+
+      <!-- PENDENTES -->
+      <div class="card" style="margin-bottom:24px">
+        <div class="card-header"><h3 class="card-title">Pendentes de aprovação</h3></div>
+
+        @if (depoimentosPendentes.length === 0) {
+          <p style="color:var(--slate);font-size:.85rem">Nenhum depoimento pendente no momento.</p>
+        }
+
+        <div *ngFor="let d of depoimentosPendentes" style="padding:14px 0;border-bottom:1px solid var(--silver-light)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+            <div style="flex:1">
+              <strong style="font-size:.88rem">{{ d.nomeCliente }}</strong>
+              <span *ngIf="d.referenteEvento" style="color:var(--slate);font-size:.78rem"> · {{ d.referenteEvento }}</span>
+              <p style="margin:6px 0 0;font-size:.85rem;color:var(--charcoal)">{{ d.mensagem }}</p>
+            </div>
+            <div style="display:flex;gap:8px;flex-shrink:0">
+              <button class="action-btn approve" (click)="aprovarDepoimento(d.id)" title="Aprovar">✓</button>
+              <button class="action-btn reject" (click)="excluirDepoimento(d.id)" title="Remover">✕</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- APROVADOS -->
+      <div class="card">
+        <div class="card-header"><h3 class="card-title">Aprovados (visíveis na Home)</h3></div>
+
+        @if (depoimentosAprovados.length === 0) {
+          <p style="color:var(--slate);font-size:.85rem">Nenhum depoimento aprovado ainda.</p>
+        }
+
+        <div *ngFor="let d of depoimentosAprovados" style="padding:14px 0;border-bottom:1px solid var(--silver-light)">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+            <div style="flex:1">
+              <strong style="font-size:.88rem">{{ d.nomeCliente }}</strong>
+              <span *ngIf="d.referenteEvento" style="color:var(--slate);font-size:.78rem"> · {{ d.referenteEvento }}</span>
+              <p style="margin:6px 0 0;font-size:.85rem;color:var(--charcoal)">{{ d.mensagem }}</p>
+            </div>
+            <button class="action-btn reject" (click)="excluirDepoimento(d.id)" title="Remover" style="flex-shrink:0">✕</button>
+          </div>
+        </div>
+      </div>
+
+    }
+  </div>
+
+  <!-- ======================== MEU PERFIL ======================== -->
+  <div class="panel" [class.active]="painelAtivo==='perfil'">
+    <div class="card" style="max-width:520px">
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+        <h3 class="card-title">Meu Perfil</h3>
+        @if (!editandoPerfilAdmin() && !carregandoPerfilAdmin()) {
+          <button type="button" style="border:none;background:none;color:var(--gold);font-size:.8rem;font-weight:700;cursor:pointer" (click)="iniciarEdicaoPerfilAdmin()">Editar</button>
+        }
+      </div>
+
+      @if (carregandoPerfilAdmin()) {
+        <p style="color:var(--slate);font-size:.85rem">Carregando...</p>
+      } @else if (erroPerfilAdmin()) {
+        <p style="color:#d4a017;font-size:.85rem">{{ erroPerfilAdmin() }}</p>
+      } @else if (perfilAdmin(); as p) {
+
+        @if (!editandoPerfilAdmin()) {
+          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--silver-light);font-size:.85rem">
+            <span style="color:var(--slate)">Nome</span><strong>{{ p.nome }}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--silver-light);font-size:.85rem">
+            <span style="color:var(--slate)">E-mail</span><strong>{{ p.email }}</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;padding:10px 0;font-size:.85rem">
+            <span style="color:var(--slate)">Telefone</span><strong>{{ p.telefone || '—' }}</strong>
+          </div>
+        } @else {
+          <div class="form-group">
+            <label>Nome completo</label>
+            <input type="text" class="adm-input" [(ngModel)]="nomeEdicaoAdmin" />
+          </div>
+          <div class="form-group">
+            <label>Telefone</label>
+            <input type="tel" class="adm-input" [(ngModel)]="telefoneEdicaoAdmin" placeholder="(21) 99999-9999" />
+          </div>
+
+          @if (erroSalvarPerfilAdmin()) {
+            <p style="color:#d4a017;font-size:.82rem;margin-bottom:12px">{{ erroSalvarPerfilAdmin() }}</p>
+          }
+
+          <div class="form-actions">
+            <button class="btn-save-product" (click)="salvarPerfilAdmin()" [disabled]="salvandoPerfilAdmin()">
+              {{ salvandoPerfilAdmin() ? 'Salvando...' : '✓ Salvar' }}
+            </button>
+            <button class="btn-clear" (click)="cancelarEdicaoPerfilAdmin()" [disabled]="salvandoPerfilAdmin()">Cancelar</button>
+          </div>
+        }
+
+        @if (perfilAdminSalvo()) {
+          <div class="success-msg">✓ Dados atualizados com sucesso!</div>
+        }
+      }
+    </div>
   </div>
 
   <!-- ======================== CADASTRO / EDIÇÃO ======================== -->
@@ -406,49 +472,11 @@
     </div>
   </div>
 
-  <!-- ======================== RELATÓRIOS ======================== -->
-  <div class="panel" [class.active]="painelAtivo==='relatorios'">
-    <div class="kpi-grid" style="margin-bottom:32px">
-      <div class="kpi-card"><div class="kpi-icon green">●</div><div><span class="kpi-val">R$ 284.600</span><span class="kpi-label">Receita Total 2026</span></div></div>
-      <div class="kpi-card"><div class="kpi-icon blue">●</div><div><span class="kpi-val">47</span><span class="kpi-label">Eventos Realizados</span></div></div>
-      <div class="kpi-card"><div class="kpi-icon yellow">●</div><div><span class="kpi-val">R$ 6.055</span><span class="kpi-label">Ticket Médio</span></div></div>
-      <div class="kpi-card"><div class="kpi-icon silver">●</div><div><span class="kpi-val">94%</span><span class="kpi-label">Taxa de Conversão</span></div></div>
-    </div>
-    <div class="card">
-      <div class="card-header"><h3 class="card-title">Receita por Tipo de Evento (2026)</h3></div>
-      <div class="bar-report">
-        <div *ngFor="let b of barReport" class="report-bar-wrap">
-          <div class="report-bar-val">{{ b.val }}</div>
-          <div class="report-bar" [style.height.%]="b.pct" [style.background]="b.color"></div>
-          <div class="report-bar-label">{{ b.label }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ======================== CONFIGURAÇÕES ======================== -->
-  <div class="panel" [class.active]="painelAtivo==='configuracoes'">
-    <div class="card">
-      <div class="card-header"><h3 class="card-title">Configurações da Plataforma</h3></div>
-      <div class="settings-form">
-        <div class="form-group"><label>Nome da Casa de Festas</label><input type="text" class="adm-input" value="Festa Planner — Espaço Premium" /></div>
-        <div class="form-group"><label>E-mail de contato</label><input type="email" class="adm-input" value="contato@festaplannerrj.com.br" /></div>
-        <div class="form-group"><label>WhatsApp / Telefone</label><input type="tel" class="adm-input" value="(21) 99999-0000" /></div>
-        <div class="form-group"><label>Taxa de serviço (%)</label><input type="number" class="adm-input" value="5" /></div>
-        <div class="form-group">
-          <label>Integração Google Calendar</label>
-          <a href="https://calendar.google.com" target="_blank" class="btn-gcal" style="display:inline-block;margin-top:4px">📅 Conectar Google Agenda</a>
-        </div>
-        <button class="btn-save-product" style="margin-top:12px">Salvar Configurações</button>
-      </div>
-    </div>
-  </div>
-
 </main>
 
 <!-- MODAL DE PEDIDO -->
 <div class="modal-overlay" [class.open]="modalAberto" (click)="fecharModal()">
-  <div class="modal-box" (click)="$event.stopPropagation()" *ngIf="pedidoModal">
+  <div class="modal-box" (click)="$event.stopPropagation()" *ngIf="pedidoModal" style="max-width:520px;max-height:88vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">
       <h3 style="font-family:var(--font-display);font-size:1.4rem;font-weight:300">Pedido #{{ pedidoModal.id }}</h3>
       <button (click)="fecharModal()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--slate)">✕</button>
@@ -458,9 +486,44 @@
       <div><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">Evento</label>{{ labelTipoEvento(pedidoModal.tipoEvento) }}</div>
       <div><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">Data</label>{{ formatarData(pedidoModal.dataEvento) }}</div>
       <div><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">Convidados</label>{{ pedidoModal.numeroConvidados }} pessoas</div>
+      <div *ngIf="pedidoModal.emailContato"><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">E-mail</label>{{ pedidoModal.emailContato }}</div>
+      <div *ngIf="pedidoModal.whatsappContato"><label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">WhatsApp</label>{{ pedidoModal.whatsappContato }}</div>
     </div>
+
+    <!-- RESUMO DO ORÇAMENTO: tema + itens -->
+    <div style="border:1px solid var(--silver-light);border-radius:6px;padding:16px;margin-bottom:20px">
+      <p style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);margin:0 0 12px">Resumo do Pedido</p>
+
+      <div *ngIf="pedidoModal.tema" style="display:flex;justify-content:space-between;padding:6px 0;font-size:.85rem;border-bottom:1px solid var(--off-white)">
+        <span>Tema: {{ pedidoModal.tema.nome }}</span>
+        <strong>R$ {{ pedidoModal.tema.valor.toLocaleString('pt-BR') }}</strong>
+      </div>
+
+      <div *ngFor="let item of pedidoModal.itens" style="display:flex;justify-content:space-between;padding:6px 0;font-size:.85rem;border-bottom:1px solid var(--off-white)">
+        <span>{{ item.produto.nome }} @if (item.quantidade > 1) { · {{ item.quantidade }} un }</span>
+        <strong>R$ {{ item.subtotal.toLocaleString('pt-BR') }}</strong>
+      </div>
+
+      <div *ngIf="!pedidoModal.tema && pedidoModal.itens.length === 0" style="font-size:.82rem;color:var(--slate);padding:6px 0">
+        Nenhum tema ou item selecionado.
+      </div>
+
+      <div style="display:flex;justify-content:space-between;padding-top:10px;margin-top:6px;font-size:.82rem;color:var(--slate)">
+        <span>Subtotal</span><span>R$ {{ pedidoModal.subtotal.toLocaleString('pt-BR') }}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--slate)">
+        <span>Taxa de serviço {{ pedidoModal.taxaServicoPercentual }}%</span>
+        <span>R$ {{ (pedidoModal.totalEstimado - pedidoModal.subtotal).toLocaleString('pt-BR') }}</span>
+      </div>
+    </div>
+
+    <div *ngIf="pedidoModal.observacoes" style="margin-bottom:20px">
+      <label style="font-size:.65rem;letter-spacing:.12em;text-transform:uppercase;color:var(--slate-dark);display:block;margin-bottom:4px">Observações do cliente</label>
+      <p style="font-size:.85rem;color:var(--charcoal);margin:0">{{ pedidoModal.observacoes }}</p>
+    </div>
+
     <div style="background:var(--off-white);padding:16px;border-radius:6px;display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-      <span style="font-size:.85rem;color:var(--slate)">Valor estimado</span>
+      <span style="font-size:.85rem;color:var(--slate)">Total estimado</span>
       <strong style="font-family:var(--font-display);font-size:1.4rem">R$ {{ pedidoModal.totalEstimado.toLocaleString('pt-BR') }}</strong>
     </div>
     <div style="display:flex;gap:10px">

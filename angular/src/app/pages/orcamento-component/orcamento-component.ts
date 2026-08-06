@@ -1,10 +1,12 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { RouterModule, Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { CatalogoApiService, ApiTema, ApiProduto } from '../../core/services/catalogo-api.service';
 import { OrcamentoApiService, OrcamentoEventoRequest, OrcamentoConfirmarRequest } from '../../core/services/orcamento-api.service';
+import { AuthService } from '../../core/services/auth-service';
+import { NavbarComponent } from '../../shared/navbar-component/navbar-component';
 
 type EventType = {
   nome: string;
@@ -31,7 +33,7 @@ type CategoriaMusicaAnimacao = 'musica' | 'som' | 'animacao' | 'show' | 'experie
 @Component({
   selector: 'app-orcamento',
   standalone: true,
-  imports: [CommonModule, RouterModule, FormsModule],
+  imports: [CommonModule, RouterModule, FormsModule, NavbarComponent],
   templateUrl: './orcamento-component.html',
   styleUrl: './orcamento-component.css'
 })
@@ -49,7 +51,12 @@ export class OrcamentoComponent implements OnInit {
   numeroPedido = signal('');
   erroEnvio = signal('');
 
-  rascunhoSalvo = false;
+  /** ID do orçamento já criado no backend nesta sessão do wizard (null até a primeira sincronização). */
+  orcamentoIdAtual: number | null = null;
+
+  rascunhoSalvo = signal(false);
+  salvandoRascunho = signal(false);
+  erroRascunho = signal('');
 
   // ---- Catálogo real vindo do backend ----
   // Também convertidos para signal(): são atribuídos dentro de métodos async
@@ -142,12 +149,86 @@ export class OrcamentoComponent implements OnInit {
 
   constructor(
     private catalogoApi: CatalogoApiService,
-    private orcamentoApi: OrcamentoApiService
+    private orcamentoApi: OrcamentoApiService,
+    private authService: AuthService,
+    private router: Router,
+    private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
     this.carregarProdutos();
-    this.carregarTemas();
+
+    const idRetomar = this.route.snapshot.queryParamMap.get('retomar');
+    if (idRetomar) {
+      this.carregarOrcamentoExistente(Number(idRetomar));
+    } else {
+      this.carregarTemas();
+      this.tentarRetomarRascunho();
+    }
+  }
+
+  /**
+   * Recarrega um orçamento já existente de volta para o wizard — tema, itens,
+   * quantidades e dados do evento — usado tanto ao abrir "Continuar editando"
+   * na tela Conta (?retomar=ID) quanto depois do cadastro/login pós "Salvar
+   * rascunho" (ver tentarRetomarRascunho()).
+   */
+  private async carregarOrcamentoExistente(id: number, avancarEtapa = true): Promise<void> {
+    try {
+      const orcamento = await firstValueFrom(this.orcamentoApi.buscar(id));
+      this.orcamentoIdAtual = orcamento.id;
+
+      this.tipoEvento = this.mapEnumParaTipoEvento(orcamento.tipoEvento);
+      this.convidados = orcamento.numeroConvidados;
+      this.dataEvento = orcamento.dataEvento ?? '';
+
+      await this.carregarTemas();
+      this.temaSelecionadoId.set(orcamento.tema?.id ?? null);
+
+      this.selecionados = {};
+      this.quantidades = {};
+      for (const item of orcamento.itens) {
+        const produtoId = item.produto.id;
+        this.quantidades[produtoId] = item.quantidade;
+        this.selecionados[produtoId] = true;
+      }
+      this.inicializarSelecaoObrigatorios();
+
+      if (avancarEtapa) {
+        this.etapaAtual = 3;
+      }
+
+      this.rascunhoSalvo.set(true);
+      setTimeout(() => this.rascunhoSalvo.set(false), 3000);
+    } catch {
+      this.orcamentoIdAtual = null;
+      this.erroRascunho.set('Não foi possível carregar esse orçamento agora.');
+      this.carregarTemas();
+    }
+  }
+
+  /**
+   * Se a pessoa salvou um rascunho sem estar logada e acabou de criar conta/logar
+   * (voltando aqui via ?retorno=/orcamento), recarrega e vincula esse rascunho
+   * à conta agora.
+   */
+  private async tentarRetomarRascunho(): Promise<void> {
+    const idPendente = localStorage.getItem('fp_rascunho_id');
+    if (!idPendente || !this.authService.isAutenticado()) {
+      return;
+    }
+    localStorage.removeItem('fp_rascunho_id');
+
+    await this.carregarOrcamentoExistente(Number(idPendente), false);
+
+    if (this.orcamentoIdAtual !== null) {
+      try {
+        await firstValueFrom(this.orcamentoApi.salvarRascunho(this.orcamentoIdAtual));
+      } catch {
+        // Já rehidratou a tela; se o vínculo falhar aqui, a pessoa ainda
+        // consegue tentar de novo clicando em "Salvar rascunho" manualmente.
+      }
+    }
   }
 
   // ==================== CARREGAMENTO DO CATÁLOGO ====================
@@ -195,7 +276,25 @@ export class OrcamentoComponent implements OnInit {
     return mapa[tipo] ?? 'TEMATICO';
   }
 
+  /** Inverso de mapTipoEventoToEnum — usado ao recarregar um orçamento existente. */
+  private mapEnumParaTipoEvento(enumValue: string): string {
+    const mapa: Record<string, string> = {
+      CASAMENTO: 'Casamento',
+      QUINZE_ANOS: '15 Anos',
+      INFANTIL: 'Infantil',
+      FLORAL: 'Floral',
+      TEMATICO: 'Temático',
+      CORPORATIVO: 'Corporativo'
+    };
+    return mapa[enumValue] ?? 'Casamento';
+  }
+
   // ==================== NAVEGAÇÃO DO WIZARD ====================
+
+  /** Pra onde o link "Conta" do menu aponta — /login se ninguém estiver logado. */
+  get linkConta(): string {
+    return this.authService.isAutenticado() ? '/conta' : '/login';
+  }
 
   get larguraProgresso(): string {
     return `${(this.etapaAtual / 4) * 100}%`;
@@ -497,13 +596,6 @@ export class OrcamentoComponent implements OnInit {
     this.selecionados[produto.id] = false;
   }
 
-  salvarRascunho(): void {
-    this.rascunhoSalvo = true;
-    setTimeout(() => {
-      this.rascunhoSalvo = false;
-    }, 2000);
-  }
-
   // ==================== ENVIO REAL PARA O BACKEND ====================
 
   private montarItensParaEnvio(): { produtoId: number; quantidade: number }[] {
@@ -531,6 +623,70 @@ export class OrcamentoComponent implements OnInit {
     return itens;
   }
 
+  /**
+   * Cria o orçamento no backend (se ainda não existir nesta sessão) e sincroniza
+   * tema + itens selecionados até agora. Usado tanto por "Salvar rascunho" quanto
+   * por "Enviar orçamento", pra não duplicar orçamento se a pessoa já salvou
+   * rascunho antes de finalizar.
+   */
+  private async montarOrcamentoAteAgora(): Promise<number> {
+    if (this.orcamentoIdAtual === null) {
+      const eventoRequest: OrcamentoEventoRequest = {
+        tipoEvento: this.mapTipoEventoToEnum(this.tipoEvento),
+        numeroConvidados: this.convidados,
+        dataEvento: this.dataEvento || undefined
+      };
+      const orcamentoCriado = await firstValueFrom(this.orcamentoApi.iniciar(eventoRequest));
+      this.orcamentoIdAtual = orcamentoCriado.id;
+    }
+
+    const orcamentoId = this.orcamentoIdAtual;
+
+    const temaId = this.temaSelecionadoId();
+    if (temaId) {
+      await firstValueFrom(this.orcamentoApi.definirTema(orcamentoId, temaId));
+    }
+
+    for (const item of this.montarItensParaEnvio()) {
+      await firstValueFrom(this.orcamentoApi.adicionarItem(orcamentoId, item));
+    }
+
+    return orcamentoId;
+  }
+
+  /**
+   * Salva o progresso atual como rascunho de verdade no backend.
+   * Se a pessoa não estiver logada, manda pro cadastro pra não perder o
+   * vínculo com esse rascunho — ao criar a conta (ou logar), o orçamento
+   * é automaticamente vinculado a ela (ver tentarRetomarRascunho()).
+   */
+  async salvarRascunho(): Promise<void> {
+    this.salvandoRascunho.set(true);
+    this.erroRascunho.set('');
+
+    try {
+      const orcamentoId = await this.montarOrcamentoAteAgora();
+      await firstValueFrom(this.orcamentoApi.salvarRascunho(orcamentoId));
+
+      this.rascunhoSalvo.set(true);
+
+      if (!this.authService.isAutenticado()) {
+        localStorage.setItem('fp_rascunho_id', String(orcamentoId));
+        // Pequena pausa só pra pessoa perceber o "✓ Rascunho salvo!" antes de sair da tela.
+        await new Promise(resolve => setTimeout(resolve, 700));
+        this.router.navigate(['/cadastro'], { queryParams: { retorno: '/orcamento', motivo: 'rascunho' } });
+        return;
+      }
+
+      setTimeout(() => this.rascunhoSalvo.set(false), 2500);
+    } catch (erro) {
+      console.error('Erro ao salvar rascunho:', erro);
+      this.erroRascunho.set('Não foi possível salvar o rascunho agora. Tente novamente.');
+    } finally {
+      this.salvandoRascunho.set(false);
+    }
+  }
+
   async enviarOrcamento(): Promise<void> {
     this.erroEnvio.set('');
 
@@ -542,22 +698,7 @@ export class OrcamentoComponent implements OnInit {
     this.enviando.set(true);
 
     try {
-      const eventoRequest: OrcamentoEventoRequest = {
-        tipoEvento: this.mapTipoEventoToEnum(this.tipoEvento),
-        numeroConvidados: this.convidados,
-        dataEvento: this.dataEvento || undefined
-      };
-      const orcamentoCriado = await firstValueFrom(this.orcamentoApi.iniciar(eventoRequest));
-      const orcamentoId = orcamentoCriado.id;
-
-      const temaId = this.temaSelecionadoId();
-      if (temaId) {
-        await firstValueFrom(this.orcamentoApi.definirTema(orcamentoId, temaId));
-      }
-
-      for (const item of this.montarItensParaEnvio()) {
-        await firstValueFrom(this.orcamentoApi.adicionarItem(orcamentoId, item));
-      }
+      const orcamentoId = await this.montarOrcamentoAteAgora();
 
       const confirmarRequest: OrcamentoConfirmarRequest = {
         nomeContato: this.nomeContato,

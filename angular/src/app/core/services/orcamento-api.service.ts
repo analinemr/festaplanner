@@ -107,6 +107,16 @@ export class OrcamentoApiService {
     return this.http.post<ApiOrcamento>(`${this.apiUrl}/${orcamentoId}/salvar-rascunho`, {});
   }
 
+  /** Busca um orçamento específico por ID (público — usado para retomar um rascunho). */
+  buscar(orcamentoId: number): Observable<ApiOrcamento> {
+    return this.http.get<ApiOrcamento>(`${this.apiUrl}/${orcamentoId}`);
+  }
+
+  /** Histórico de orçamentos do cliente logado — usado na tela "Sua conta". */
+  meusOrcamentos(): Observable<ApiOrcamento[]> {
+    return this.http.get<ApiOrcamento[]>(`${this.apiUrl}/meus`);
+  }
+
   // ==================== ADMIN (tela "Pedidos") ====================
 
   /** Lista os pedidos para o ADM. Sem status: retorna tudo exceto rascunhos. */

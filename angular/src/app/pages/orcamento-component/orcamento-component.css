@@ -39,6 +39,11 @@ button {
   cursor: pointer;
 }
 
+.nav-logo,
+.nav-links a {
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.75), 0 1px 2px rgba(0, 0, 0, 0.9);
+}
+
 .orcamento-page {
   min-height: 100vh;
   background: var(--off-white);

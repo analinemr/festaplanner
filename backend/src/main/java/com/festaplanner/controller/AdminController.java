@@ -1,12 +1,10 @@
 package com.festaplanner.controller;
 
-import com.festaplanner.dto.AtualizarStatusRequest;
 import com.festaplanner.model.Agenda;
 import com.festaplanner.model.Orcamento;
 import com.festaplanner.model.StatusOrcamento;
 import com.festaplanner.service.AgendaService;
 import com.festaplanner.service.OrcamentoService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,7 +15,11 @@ import java.util.Map;
 
 /**
  * Endpoints restritos a ADMINISTRADOR (ver SecurityConfig: /api/admin/** exige
- * authority ADMINISTRADOR). Cobre as telas: Painel, Pedidos e Agenda do ADM.
+ * authority ADMINISTRADOR). Cobre as telas: Painel e Agenda do ADM.
+ *
+ * A parte de "Pedidos" (listar/atualizar status) foi movida para
+ * AdminOrcamentoController (/api/admin/orcamentos) para evitar dois endpoints
+ * fazendo a mesma coisa de jeitos diferentes — é esse que o frontend usa hoje.
  */
 @RestController
 @RequestMapping("/api/admin")
@@ -26,19 +28,6 @@ public class AdminController {
 
     private final OrcamentoService orcamentoService;
     private final AgendaService agendaService;
-
-    // ---- Tela "Pedidos": lista de solicitações, com filtro opcional por status ----
-    @GetMapping("/pedidos")
-    public ResponseEntity<List<Orcamento>> listarPedidos(@RequestParam(required = false) StatusOrcamento status) {
-        return ResponseEntity.ok(orcamentoService.listarTodos(status));
-    }
-
-    // ---- Ações ✓ (aprovar/avançar) e ✗ (recusar) da tela de Pedidos ----
-    @PutMapping("/pedidos/{id}/status")
-    public ResponseEntity<Orcamento> atualizarStatus(@PathVariable Long id,
-                                                       @Valid @RequestBody AtualizarStatusRequest request) {
-        return ResponseEntity.ok(orcamentoService.atualizarStatus(id, request.getStatus()));
-    }
 
     // ---- Tela "Agenda" ----
     @GetMapping("/agenda")
@@ -58,6 +47,8 @@ public class AdminController {
     }
 
     // ---- Tela "Painel": cards de indicadores (Novos Pedidos, Em Negociação, Receita, Confirmados) ----
+    // Hoje o frontend calcula esses números no cliente a partir da lista de pedidos já carregada
+    // (ver admin-component.ts). Esse endpoint fica pronto caso queiram migrar esse cálculo pro backend.
     @GetMapping("/painel/resumo")
     public ResponseEntity<Map<String, Object>> resumoPainel() {
         List<Orcamento> novos = orcamentoService.listarTodos(StatusOrcamento.NOVO);

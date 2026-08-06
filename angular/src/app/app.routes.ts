@@ -45,6 +45,16 @@ export const routes: Routes = [
       import('./pages/login-component/login-component').then(m => m.LoginComponent)
   },
   {
+  path: 'conta',
+  loadComponent: () =>
+    import('./pages/conta-component/conta-component').then(m => m.ContaComponent)
+  },
+  {
+    path: 'cadastro',
+    loadComponent: () =>
+      import('./pages/cadastro-component/cadastro-component').then(m => m.CadastroComponent)
+  },
+  {
     path: 'admin',
     canActivate: [authGuard],
     loadComponent: () =>
