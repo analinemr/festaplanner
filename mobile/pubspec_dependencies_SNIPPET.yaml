@@ -1,0 +1,34 @@
+# >>> COLE ESTE TRECHO dentro do seu pubspec.yaml existente (pasta mobile/) <<<
+# Ele substitui/complementa a seção "dependencies:" gerada pelo `flutter create`.
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Gerenciamento de estado
+  provider: ^6.1.2
+
+  # Cliente HTTP
+  dio: ^5.4.3+1
+
+  # Armazenamento seguro do token JWT
+  flutter_secure_storage: ^9.2.2
+
+  # Fontes (Cormorant Garamond / Playfair Display + Inter)
+  google_fonts: ^6.2.1
+
+  # Formatação de datas/moeda (pt_BR)
+  intl: ^0.19.0
+
+  # Abrir app de e-mail (e no futuro, WhatsApp) com dados pré-preenchidos
+  url_launcher: ^6.3.0
+
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
