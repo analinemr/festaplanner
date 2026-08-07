@@ -1,9 +1,9 @@
-// This is a basic Flutter widget test.
+// Teste de smoke básico do FestaPlanner Admin.
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+// Como o app decide entre Login e Painel dependendo de haver uma sessão
+// salva (via flutter_secure_storage), e não há storage real disponível em
+// ambiente de teste, o app deve cair no estado "não autenticado" e mostrar
+// a tela de Login.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,20 +11,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/main.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('App mostra a tela de Login ao iniciar', (WidgetTester tester) async {
+    await tester.pumpWidget(const FestaPlannerAdminApp());
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+    // Enquanto restaurarSessao() ainda não resolveu, mostra o loading.
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Aguarda a resolução do restaurarSessao() (leitura do secure storage)
+    // e a troca para a tela de Login.
+    await tester.pumpAndSettle();
+
+    expect(find.text('FestaPlanner'), findsOneWidget);
+    expect(find.text('Painel do Administrador'), findsOneWidget);
+    expect(find.byType(TextFormField), findsNWidgets(2)); // e-mail + senha
+    expect(find.widgetWithText(ElevatedButton, 'ENTRAR'), findsOneWidget);
   });
 }

@@ -56,6 +56,7 @@ class _DepoimentosScreenState extends State<DepoimentosScreen> {
     );
 
     if (confirmar != true) return;
+    if (!mounted) return;
 
     try {
       await context.read<DepoimentoProvider>().excluir(d.id);
@@ -95,7 +96,7 @@ class _DepoimentosScreenState extends State<DepoimentosScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: provider.depoimentos.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final d = provider.depoimentos[index];
           return _DepoimentoCard(
@@ -208,9 +209,9 @@ class _AprovadoBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.4)),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
         aprovado ? 'Aprovado' : 'Pendente',

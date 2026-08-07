@@ -82,7 +82,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: Colors.black.withOpacity(0.06)),
+          side: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -92,11 +92,11 @@ class AppTheme {
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.black.withOpacity(0.1)),
+          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.1)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.black.withOpacity(0.1)),
+          borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.1)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -125,7 +125,7 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.charcoal,
-          side: BorderSide(color: Colors.black.withOpacity(0.2)),
+          side: BorderSide(color: Colors.black.withValues(alpha: 0.2)),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
@@ -133,7 +133,7 @@ class AppTheme {
         ),
       ),
       dividerTheme: DividerThemeData(
-        color: Colors.black.withOpacity(0.08),
+        color: Colors.black.withValues(alpha: 0.08),
         thickness: 1,
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(

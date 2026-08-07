@@ -66,7 +66,7 @@ class _OrcamentoListScreenState extends State<OrcamentoListScreen> {
       child: ListView.separated(
         padding: const EdgeInsets.all(16),
         itemCount: provider.orcamentos.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 10),
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final orcamento = provider.orcamentos[index];
           return _OrcamentoCard(orcamento: orcamento);
@@ -123,13 +123,13 @@ class _FiltroStatusBar extends StatelessWidget {
       selected: selected,
       onSelected: (_) => onTap(),
       backgroundColor: Colors.white,
-      selectedColor: c.withOpacity(0.14),
+      selectedColor: c.withValues(alpha: 0.14),
       labelStyle: TextStyle(
         color: selected ? c : Colors.black54,
         fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
         fontSize: 13,
       ),
-      side: BorderSide(color: selected ? c.withOpacity(0.5) : Colors.black12),
+      side: BorderSide(color: selected ? c.withValues(alpha: 0.5) : Colors.black12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
     );
   }
